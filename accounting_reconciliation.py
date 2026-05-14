@@ -95,11 +95,16 @@ for r in paidtran:
     tran_by_purvch[r["PURVCHNO"]].append(r)
 
 # CHQ (integer) -> PAIDMAST row
+# If duplicate CHQ number exists, keep the one with higher PADVCHNO (latest entry)
 chq_lookup = {}
 for r in paidmast:
     chq = r["CHQNO"].strip()
     if chq.isdigit():
-        chq_lookup[int(chq)] = r
+        key = int(chq)
+        existing = chq_lookup.get(key)
+        # Keep entry with higher PADVCHNO (latest payment entry)
+        if not existing or int(r["PADVCHNO"]) > int(existing["PADVCHNO"]):
+            chq_lookup[key] = r
 
 # GPAY/NEFT/UPI: amount (int) -> list of PAIDMAST rows  (for unique-amount matching)
 gpay_neft_by_amt = defaultdict(list)
@@ -201,15 +206,20 @@ for row_idx in range(2, ws_bank.max_row + 1):
     mast_row = None
     match_type = ""
 
-    # ── Method 1: CHQ number match (last digits of narration)
+    # ── Method 1: CHQ number match — ONLY for "CHQ PAID" narrations
+    #    FT-DR / UPI / NEFT etc. ka number CHQ number nahi hota, match mat karo
+    is_chq_paid = "CHQ PAID" in narr.upper()
     nums = re.findall(r"\d+", narr)
-    if nums:
+
+    if is_chq_paid and nums:
         mast_row = chq_lookup.get(int(nums[-1]))
         if mast_row:
             match_type = "CHQ_MATCHED"
 
     # ── Method 2: GPAY/NEFT/UPI – match by exact withdrawal amount
-    if not mast_row and wd_val and txtype == "DR":
+    #    Only for narrations that indicate digital payment (not CHQ, not FT)
+    is_digital = any(x in narr.upper() for x in ["UPI", "GPAY", "PAYTM", "PHONEPE", "NEFT", "RTGS", "IMPS"])
+    if not mast_row and is_digital and wd_val and txtype == "DR":
         try:
             amt = int(float(wd_val))
             candidates = gpay_neft_by_amt.get(amt, [])
@@ -218,10 +228,9 @@ for row_idx in range(2, ws_bank.max_row + 1):
                 match_type = "GPAY_AMT_MATCHED"
         except: pass
 
-    # ── Method 3: CHQ in narration but NOT in PAIDMAST (pre-takeover / unrecorded)
-    if not mast_row and ("CHQ PAID" in narr.upper() or "CHQ" in narr.upper()):
-        if nums:
-            match_type = "NOT_IN_SYSTEM"
+    # ── Method 3: CHQ PAID but NOT in PAIDMAST (pre-takeover / unrecorded)
+    if not mast_row and is_chq_paid and nums:
+        match_type = "NOT_IN_SYSTEM"
 
     if mast_row:
         # Party Name
@@ -295,19 +304,19 @@ for row_idx in range(2, ws_sys.max_row + 1):
     amount = flt(ws_sys.cell(row=row_idx, column=amount_col).value) if amount_col else 0
 
     # Find PAIDTRAN rows for this purchase voucher
-    tran_rows = tran_by_purvch.get(vou_str, [])
+    # ONLY use entries where BILLDATE >= 29-May-2025 (post-takeover)
+    all_tran = tran_by_purvch.get(vou_str, [])
+    tran_rows = [r for r in all_tran
+                 if (bd := parse_date(r["BILLDATE"])) and bd >= TAKEOVER_DT]
 
     if not tran_rows:
-        # ── UNPAID BILL: Pending = full Amount ──────────────────────────────
-        if pending_col and amount:
-            c = ws_sys.cell(row=row_idx, column=pending_col, value=amount)
-            c.fill = fill(C_RED_LIGHT)
-            cnt_pending_unpaid += 1
+        # No payment found — leave ALL columns blank (do NOT fill Pending)
+        cnt_pending_unpaid += 1
         continue
 
     cnt_matched += 1
 
-    # Use first PAIDTRAN row to get PAIDMAST
+    # Use first PAIDTRAN row (post-takeover) to get PAIDMAST
     tr       = tran_rows[0]
     padvchno = tr["PADVCHNO"]
     mast_row = mast_by_vch.get(padvchno, {})
@@ -350,11 +359,14 @@ for row_idx in range(2, ws_sys.max_row + 1):
     if paid_amt and oldacct_col:
         ws_sys.cell(row=row_idx, column=oldacct_col, value=round(paid_amt, 2)).fill = fill(C_BLUE_LIGHT)
 
-    # Pending = PURBALAMT (remaining unpaid portion)
+    # Pending = PURBALAMT only if > 0 (partial payment — some balance remaining)
     bal_amt = flt(tr["PURBALAMT"])
     if bal_amt > 0 and pending_col:
         ws_sys.cell(row=row_idx, column=pending_col, value=round(bal_amt, 2)).fill = fill(C_GREY)
         cnt_pending_partial += 1
+    elif pending_col:
+        # Fully paid — clear any stale value, leave blank
+        ws_sys.cell(row=row_idx, column=pending_col).value = None
 
 wb_sys.save("System_Puchase.xlsx")
 print(f"  Matched (paid)         : {cnt_matched}")
