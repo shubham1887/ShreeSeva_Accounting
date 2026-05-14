@@ -1,20 +1,15 @@
 """
-ShreeSeva Medical Accounting Reconciliation Script
+ShreeSeva Medical - Accounting Reconciliation
 Takeover Date: 29-May-2025
 
-Bank Statement matching:
-  1. CHQ rows -> PAIDMAST by last digits of narration
-  2. GPAY/NEFT/UPI -> PAIDMAST by exact withdrawal amount (unique match only)
-  3. Unmatched CHQ -> flag as NOT_IN_SYSTEM (pre-takeover, not in new software)
-
-System_Purchase columns filled:
-  Date           = PAIDMAST.CHQDATE
-  Type           = CHQ / GPAY / NEFT etc.
-  ChQ No.        = PAIDMAST.CHQNO
-  Previous Pend  = sum PURPAIDAMT where BILLDATE < 29-May-2025 (same PADVCHNO)
-  Old Account    = PURPAIDAMT of the specific matched PAIDTRAN row
-  Pending        = PURBALAMT if partially paid; full Amount if no payment found
-  Cash           = Amount if payment type is CASH
+Logic:
+  1. Join ACCOUNT + PAIDMAST + PAIDTRAN into one sheet (DBF_Joined_Data.xlsx)
+  2. For each PAIDMAST CHQNO, check if it appears in Bank Statement (CHQ PAID narration)
+  3. System_Purchase (per Vou.No. = PAIDTRAN.PURVCHNO, BILLDATE >= 29-May):
+       - CHQ found in bank   -> Date, ChQ No., Old Account = PURPAIDAMT
+       - CHQ NOT in bank     -> Pending = System_Purchase Amount
+       - No payment at all   -> Pending = System_Purchase Amount
+     Old Account = ONLY bank-confirmed entries. Nothing else.
 """
 
 import struct, re, openpyxl
@@ -22,381 +17,330 @@ from openpyxl.styles import PatternFill, Font
 from datetime import date
 from collections import defaultdict
 
-TAKEOVER_DT = date(2025, 5, 29)
+TAKEOVER = date(2025, 5, 29)
 
-# ── Colors ────────────────────────────────────────────────────────────────────
-C_HDR_BLUE   = "1F4E79"  # dark blue header
-C_HDR_ORG    = "FF6600"  # orange new-col header
-C_GREEN      = "E2EFDA"  # matched CHQ
-C_YELLOW     = "FFF2CC"  # date/type/chq fill
-C_GOLD       = "FFD966"  # prev pending
-C_BLUE_LIGHT = "BDD7EE"  # old account
-C_RED_LIGHT  = "FCE4D6"  # not-in-system / unpaid pending
-C_PURPLE     = "E2CFEF"  # gpay/neft match
-C_GREY       = "D9D9D9"  # partial pending
+# ── Styles ────────────────────────────────────────────────────────────────────
+def F(c): return PatternFill(start_color=c, end_color=c, fill_type="solid")
+def FT(c="000000", bold=False): return Font(color=c, bold=bold)
 
-def fill(color): return PatternFill(start_color=color, end_color=color, fill_type="solid")
-def font(color="000000", bold=False): return Font(color=color, bold=bold)
-
+BLUE   = "1F4E79"; WHITE  = "FFFFFF"
+GREEN  = "E2EFDA"; GOLD   = "FFD966"
+YELLOW = "FFF2CC"; LBLUE  = "BDD7EE"
+RED    = "FCE4D6"; GREY   = "D9D9D9"
+ORANGE = "FF6600"
 
 # ── DBF Reader ────────────────────────────────────────────────────────────────
-def read_dbf(filename):
-    with open(filename, "rb") as f:
-        h = f.read(32)
+def read_dbf(path):
+    with open(path, "rb") as f:
+        h  = f.read(32)
         nr = struct.unpack("<I", h[4:8])[0]
         hs = struct.unpack("<H", h[8:10])[0]
         rs = struct.unpack("<H", h[10:12])[0]
-        flds = []
+        fields = []
         while True:
             fd = f.read(32)
             if fd[0] == 0x0D: break
-            flds.append((fd[:11].replace(b"\x00", b"").decode("latin-1"), chr(fd[11]), fd[16]))
+            fields.append((fd[:11].replace(b"\x00",b"").decode("latin-1"), chr(fd[11]), fd[16]))
         f.seek(hs)
-        recs = []
+        rows = []
         for _ in range(nr):
             rec = f.read(rs)
             if not rec or rec[0] == 0x1A: break
             if rec[0] == ord("*"): continue
             row = {}; pos = 1
-            for n, t, l in flds:
+            for n, t, l in fields:
                 row[n] = rec[pos:pos+l].decode("latin-1").strip(); pos += l
-            recs.append(row)
-    return recs
+            rows.append(row)
+    return rows
 
-def parse_date(s):
+def to_date(s):
     if s and len(s) == 8 and s.isdigit():
         try: return date(int(s[:4]), int(s[4:6]), int(s[6:8]))
         except: pass
     return None
 
-def flt(v, default=0.0):
-    try: return float(v) if v else default
-    except: return default
-
-def safe_int_str(v):
-    try: return str(int(float(v)))
-    except: return None
-
+def flt(v):
+    try: return float(v) if v else 0.0
+    except: return 0.0
 
 # ── Load DBF ──────────────────────────────────────────────────────────────────
-print("=" * 65)
-print("Loading DBF tables...")
+print("=" * 60)
+print("Step 1 : Loading DBF files...")
 account  = read_dbf("DataBase/ACCOUNT.DBF")
 paidmast = read_dbf("DataBase/PAIDMAST.DBF")
 paidtran = read_dbf("DataBase/PAIDTRAN.DBF")
 print(f"  ACCOUNT:{len(account)}  PAIDMAST:{len(paidmast)}  PAIDTRAN:{len(paidtran)}")
 
-acct_by_id    = {r["ACCOID"]: r for r in account}
-mast_by_vch   = {r["PADVCHNO"]: r for r in paidmast}
-tran_by_padvch = defaultdict(list)
+# Lookup maps
+acct_map  = {r["ACCOID"]: r["ACCONM"] for r in account}
+mast_map  = {r["PADVCHNO"]: r for r in paidmast}
+
+# PAIDTRAN grouped by PURVCHNO (only post-takeover bills)
 tran_by_purvch = defaultdict(list)
 for r in paidtran:
+    bd = to_date(r["BILLDATE"])
+    if bd and bd >= TAKEOVER:
+        tran_by_purvch[r["PURVCHNO"]].append(r)
+
+# PAIDTRAN grouped by PADVCHNO (for bank statement Voucher_No column)
+tran_by_padvch = defaultdict(list)
+for r in paidtran:
     tran_by_padvch[r["PADVCHNO"]].append(r)
-    tran_by_purvch[r["PURVCHNO"]].append(r)
 
-# CHQ (integer) -> PAIDMAST row
-# If duplicate CHQ number exists, keep the one with higher PADVCHNO (latest entry)
-chq_lookup = {}
+# ── Step 1: Build Joined DBF Excel ────────────────────────────────────────────
+print("\nStep 1b: Exporting joined DBF -> DBF_Joined_Data.xlsx ...")
+wb_j = openpyxl.Workbook()
+
+# Sheet 1: PAIDMAST joined with ACCOUNT
+ws_j1 = wb_j.active; ws_j1.title = "PAIDMAST_ACCOUNT"
+ws_j1.append(["VchNo","VchDate","PartyID","PartyName","CHQNo","CHQDate",
+               "Amount","Discount","Pending","PayType","Narration","FYear"])
 for r in paidmast:
-    chq = r["CHQNO"].strip()
-    if chq.isdigit():
-        key = int(chq)
-        existing = chq_lookup.get(key)
-        # Keep entry with higher PADVCHNO (latest payment entry)
-        if not existing or int(r["PADVCHNO"]) > int(existing["PADVCHNO"]):
-            chq_lookup[key] = r
-
-# GPAY/NEFT/UPI: amount (int) -> list of PAIDMAST rows  (for unique-amount matching)
-gpay_neft_by_amt = defaultdict(list)
-for r in paidmast:
-    chq = r["CHQNO"].strip().upper()
-    if not chq.isdigit():   # non-CHQ payment (GPAY / NEFT / RTGS etc.)
-        try:
-            amt = int(float(r["PADVCHAMT"]))
-            if amt > 0:
-                gpay_neft_by_amt[amt].append(r)
-        except: pass
-
-# Pre-calculate Previous Pending per PADVCHNO (sum PURPAIDAMT for pre-takeover bills)
-prev_pend_by_padvch = defaultdict(float)
-for r in paidtran:
-    bd = parse_date(r["BILLDATE"])
-    if bd and bd < TAKEOVER_DT:
-        prev_pend_by_padvch[r["PADVCHNO"]] += flt(r["PURPAIDAMT"])
-
-
-# ── Export joined DBF ─────────────────────────────────────────────────────────
-print("\nExporting DBF_Joined_Data.xlsx ...")
-wb_dbf = openpyxl.Workbook()
-
-ws1 = wb_dbf.active
-ws1.title = "PAIDMAST_with_Party"
-ws1.append(["VoucherNo","VoucherDate","PartyID","PartyName","Amount",
-            "Discount","Pending","CHQNo","CHQDate","PayType","Narration","FYear"])
-for r in paidmast:
-    acct = acct_by_id.get(r["ACCOID"], {})
-    ws1.append([
+    ws_j1.append([
         int(r["PADVCHNO"]) if r["PADVCHNO"].isdigit() else r["PADVCHNO"],
-        parse_date(r["PADVCHDATE"]),
+        to_date(r["PADVCHDATE"]),
         int(r["ACCOID"]) if r["ACCOID"].isdigit() else r["ACCOID"],
-        acct.get("ACCONM",""),
+        acct_map.get(r["ACCOID"], ""),
+        r["CHQNO"], to_date(r["CHQDATE"]),
         flt(r["PADVCHAMT"]), flt(r["PADDISC"]), flt(r["PENDING"]),
-        r["CHQNO"], parse_date(r["CHQDATE"]), r["PADTRDTYPE"], r["NARA"], r["FINYEAR"],
+        r["PADTRDTYPE"], r["NARA"], r["FINYEAR"],
     ])
 
-ws2 = wb_dbf.create_sheet("PAIDTRAN_Full")
-ws2.append(["PayVoucherNo","PayDate","PartyID","PartyName","BillNo","BillDate",
-            "BillAmt","PaidAmt","BalAmt","Discount","PurchVoucherNo","CHQNo",
-            "CHQDate","PayType","PriorToTakeover"])
+# Sheet 2: PAIDTRAN joined with PAIDMAST + ACCOUNT
+ws_j2 = wb_j.create_sheet("PAIDTRAN_FULL")
+ws_j2.append(["PayVchNo","PayDate","PartyID","PartyName","BillNo","BillDate",
+               "NetAmt","PaidAmt","BalAmt","Discount","PurchVchNo","CHQNo",
+               "CHQDate","PayType","PostTakeover"])
 for r in paidtran:
-    mast = mast_by_vch.get(r["PADVCHNO"], {})
-    acct = acct_by_id.get(r["ACCOID"], {})
-    bd   = parse_date(r["BILLDATE"])
-    ws2.append([
-        int(r["PADVCHNO"]) if r["PADVCHNO"].isdigit() else r["PADVCHNO"],
-        parse_date(r["PADVCHDATE"]),
-        int(r["ACCOID"]) if r["ACCOID"].isdigit() else r["ACCOID"],
-        acct.get("ACCONM",""),
+    m  = mast_map.get(r["PADVCHNO"], {})
+    bd = to_date(r["BILLDATE"])
+    ws_j2.append([
+        int(r["PADVCHNO"])  if r["PADVCHNO"].isdigit()  else r["PADVCHNO"],
+        to_date(r["PADVCHDATE"]),
+        int(r["ACCOID"])    if r["ACCOID"].isdigit()     else r["ACCOID"],
+        acct_map.get(r["ACCOID"], ""),
         r["BILLNO"], bd,
-        flt(r["PURNETAMT"]), flt(r["PURPAIDAMT"]), flt(r["PURBALAMT"]), flt(r["DISCOUNT"]),
+        flt(r["PURNETAMT"]), flt(r["PURPAIDAMT"]), flt(r["PURBALAMT"]),
+        flt(r["DISCOUNT"]),
         int(r["PURVCHNO"]) if r["PURVCHNO"].isdigit() else r["PURVCHNO"],
-        mast.get("CHQNO",""), parse_date(mast.get("CHQDATE","")), r["PADTRDTYPE"],
-        "YES" if (bd and bd < TAKEOVER_DT) else "NO",
+        m.get("CHQNO",""), to_date(m.get("CHQDATE","")), r["PADTRDTYPE"],
+        "YES" if (bd and bd >= TAKEOVER) else "NO",
     ])
 
-hf = fill(C_HDR_BLUE); hfont = font("FFFFFF", bold=True)
-for ws in [ws1, ws2]:
-    for cell in ws[1]: cell.fill = hf; cell.font = hfont
+hf = F(BLUE); hft = FT(WHITE, bold=True)
+for ws in [ws_j1, ws_j2]:
+    for c in ws[1]: c.fill = hf; c.font = hft
     ws.freeze_panes = ws["A2"]
-wb_dbf.save("DBF_Joined_Data.xlsx")
+wb_j.save("DBF_Joined_Data.xlsx")
 print("  Saved: DBF_Joined_Data.xlsx")
 
 
-# ── Update Bank Statement ─────────────────────────────────────────────────────
-print("\nUpdating Old_Bank_Statement_Shree_Seva_Medical.xlsx ...")
-
+# ── Step 2: Build Bank Statement CHQ lookup ───────────────────────────────────
+print("\nStep 2 : Scanning Bank Statement for CHQ PAID entries...")
 wb_bank = openpyxl.load_workbook("Old_Bank_Statement_Shree_Seva_Medical.xlsx")
 ws_bank = wb_bank.active
-bank_headers = [c.value for c in ws_bank[1]]
 
-def get_or_add(ws, headers, name):
+# chq_int -> bank row date
+bank_chq_date = {}
+# All rows for flagging NOT_IN_SYSTEM
+for row in ws_bank.iter_rows(min_row=2, values_only=True):
+    narr = str(row[1]) if row[1] else ""
+    if "CHQ PAID" not in narr.upper():
+        continue
+    nums = re.findall(r"\d+", narr)
+    if not nums:
+        continue
+    chq_int = int(nums[-1])
+    # Store earliest bank date for this CHQ
+    bank_dt = row[0] if isinstance(row[0], date) else None
+    if bank_dt is None and row[0]:
+        try: bank_dt = row[0].date() if hasattr(row[0],'date') else None
+        except: pass
+    if chq_int not in bank_chq_date:
+        bank_chq_date[chq_int] = bank_dt
+
+print(f"  Unique CHQ PAID numbers in bank: {len(bank_chq_date)}")
+
+# Set of confirmed CHQs (in bank)
+confirmed_chqs = set(bank_chq_date.keys())
+
+# PAIDMAST CHQ -> PADVCHNO map (numeric CHQs)
+# If duplicate CHQ, store list
+chq_to_padvch = defaultdict(list)
+for r in paidmast:
+    c = r["CHQNO"].strip()
+    if c.isdigit():
+        chq_to_padvch[int(c)].append(r["PADVCHNO"])
+
+
+# ── Step 3: Update Bank Statement columns ─────────────────────────────────────
+# Add: Voucher_No (PURVCHNO list), Party_Name, Match_Status
+bh = [c.value for c in ws_bank[1]]
+
+def get_or_add_col(ws, headers, name):
     if name in headers:
         return headers.index(name) + 1
     col = ws.max_column + 1
     c = ws.cell(row=1, column=col, value=name)
-    c.fill = fill(C_HDR_ORG); c.font = font("FFFFFF", bold=True)
+    c.fill = F(ORANGE); c.font = FT(WHITE, bold=True)
     return col
 
-# Refresh headers after any previous run
-bank_headers = [c.value for c in ws_bank[1]]
-vch_col  = get_or_add(ws_bank, bank_headers, "Voucher_No")
-pty_col  = get_or_add(ws_bank, bank_headers, "Party_Name")
-note_col = get_or_add(ws_bank, bank_headers, "Match_Status")
+bvch_col  = get_or_add_col(ws_bank, bh, "Voucher_No")
+bpty_col  = get_or_add_col(ws_bank, bh, "Party_Name")
+bsts_col  = get_or_add_col(ws_bank, bh, "Match_Status")
 
-# Refresh header list
-bank_headers = [c.value for c in ws_bank[1]]
-
-cnt_chq = cnt_gpay = cnt_not_sys = 0
-
+cnt_bank_chq = cnt_bank_not_sys = 0
 for row_idx in range(2, ws_bank.max_row + 1):
-    narr  = str(ws_bank.cell(row=row_idx, column=2).value or "")
-    wd_val = ws_bank.cell(row=row_idx, column=6).value  # Withdrawal_Amt
-    txtype = str(ws_bank.cell(row=row_idx, column=5).value or "")
-
-    mast_row = None
-    match_type = ""
-
-    # ── Method 1: CHQ number match — ONLY for "CHQ PAID" narrations
-    #    FT-DR / UPI / NEFT etc. ka number CHQ number nahi hota, match mat karo
-    is_chq_paid = "CHQ PAID" in narr.upper()
+    narr = str(ws_bank.cell(row=row_idx, column=2).value or "")
+    if "CHQ PAID" not in narr.upper():
+        continue
     nums = re.findall(r"\d+", narr)
+    if not nums:
+        continue
+    chq_int = int(nums[-1])
 
-    if is_chq_paid and nums:
-        mast_row = chq_lookup.get(int(nums[-1]))
-        if mast_row:
-            match_type = "CHQ_MATCHED"
+    padvchno_list = chq_to_padvch.get(chq_int, [])
+    if padvchno_list:
+        # Confirmed in both bank and PAIDMAST
+        # Write PURVCHNO list from PAIDTRAN
+        purvchno_all = []
+        party_names  = set()
+        for pv in padvchno_list:
+            for tr in tran_by_padvch.get(pv, []):
+                purvchno_all.append(tr["PURVCHNO"])
+            mast = mast_map.get(pv, {})
+            party_names.add(acct_map.get(mast.get("ACCOID",""), ""))
 
-    # ── Method 2: GPAY/NEFT/UPI – match by exact withdrawal amount
-    #    Only for narrations that indicate digital payment (not CHQ, not FT)
-    is_digital = any(x in narr.upper() for x in ["UPI", "GPAY", "PAYTM", "PHONEPE", "NEFT", "RTGS", "IMPS"])
-    if not mast_row and is_digital and wd_val and txtype == "DR":
-        try:
-            amt = int(float(wd_val))
-            candidates = gpay_neft_by_amt.get(amt, [])
-            if len(candidates) == 1:
-                mast_row = candidates[0]
-                match_type = "GPAY_AMT_MATCHED"
-        except: pass
-
-    # ── Method 3: CHQ PAID but NOT in PAIDMAST (pre-takeover / unrecorded)
-    if not mast_row and is_chq_paid and nums:
-        match_type = "NOT_IN_SYSTEM"
-
-    if mast_row:
-        # Party Name
-        acct = acct_by_id.get(mast_row["ACCOID"], {})
-        party = acct.get("ACCONM", "")
-        ws_bank.cell(row=row_idx, column=pty_col, value=party)
-
-        # PURVCHNO comma-separated
-        tran_rows = tran_by_padvch.get(mast_row["PADVCHNO"], [])
-        purvchno_csv = ",".join(r["PURVCHNO"] for r in tran_rows if r["PURVCHNO"])
-        ws_bank.cell(row=row_idx, column=vch_col, value=purvchno_csv)
-
-        # Color
-        clr = C_GREEN if match_type == "CHQ_MATCHED" else C_PURPLE
-        ws_bank.cell(row=row_idx, column=vch_col).fill  = fill(clr)
-        ws_bank.cell(row=row_idx, column=pty_col).fill  = fill(clr)
-
-        if match_type == "CHQ_MATCHED": cnt_chq += 1
-        else: cnt_gpay += 1
-
-    if match_type == "NOT_IN_SYSTEM":
-        ws_bank.cell(row=row_idx, column=note_col, value="NOT_IN_SYSTEM")
-        ws_bank.cell(row=row_idx, column=note_col).fill = fill(C_RED_LIGHT)
-        cnt_not_sys += 1
-    elif mast_row:
-        ws_bank.cell(row=row_idx, column=note_col, value=match_type)
-        ws_bank.cell(row=row_idx, column=note_col).fill = fill(C_GREEN if match_type=="CHQ_MATCHED" else C_PURPLE)
+        ws_bank.cell(row=row_idx, column=bvch_col, value=",".join(purvchno_all)).fill = F(GREEN)
+        ws_bank.cell(row=row_idx, column=bpty_col, value=" / ".join(p for p in party_names if p)).fill = F(GREEN)
+        ws_bank.cell(row=row_idx, column=bsts_col, value="CHQ_MATCHED").fill = F(GREEN)
+        cnt_bank_chq += 1
+    else:
+        # CHQ in bank but not in PAIDMAST -> pre-system
+        ws_bank.cell(row=row_idx, column=bsts_col, value="NOT_IN_SYSTEM").fill = F(RED)
+        cnt_bank_not_sys += 1
 
 wb_bank.save("Old_Bank_Statement_Shree_Seva_Medical.xlsx")
-print(f"  CHQ matched    : {cnt_chq}")
-print(f"  GPAY/NEFT matched (by amount): {cnt_gpay}")
-print(f"  NOT_IN_SYSTEM  : {cnt_not_sys}  (CHQ not recorded in new software)")
-print("  Saved.")
+print(f"  CHQ matched (in system)  : {cnt_bank_chq}")
+print(f"  NOT_IN_SYSTEM (pre-takeover) : {cnt_bank_not_sys}")
+print("  Saved: Old_Bank_Statement_Shree_Seva_Medical.xlsx")
 
 
-# ── Update System_Purchase ────────────────────────────────────────────────────
-print("\nUpdating System_Puchase.xlsx ...")
-
+# ── Step 4: Update System_Purchase ───────────────────────────────────────────
+print("\nStep 4 : Updating System_Puchase.xlsx ...")
 wb_sys = openpyxl.load_workbook("System_Puchase.xlsx")
 ws_sys = wb_sys.active
-sys_headers = [c.value for c in ws_sys[1]]
+sh = [c.value for c in ws_sys[1]]
 
-def colp(name):
-    for i, h in enumerate(sys_headers):
+def col(name):
+    for i, h in enumerate(sh):
         if h and str(h).strip().lower() == name.lower():
             return i + 1
     return None
 
-date_col     = colp("Date")
-type_col     = colp("Type")
-chqno_col    = colp("ChQ No.")
-prevpend_col = colp("Previous Pending")
-oldacct_col  = colp("Old Account")
-newacct_col  = colp("New Account")
-pending_col  = colp("Pending")
-cash_col     = colp("Cash")
-amount_col   = colp("Amount")
+amt_col      = col("Amount")
+date_col     = col("Date")
+type_col     = col("Type")
+chqno_col    = col("ChQ No.")
+prev_col     = col("Previous Pending")
+old_col      = col("Old Account")
+new_col      = col("New Account")
+pend_col     = col("Pending")
+cash_col     = col("Cash")
 
-print(f"  Cols → Date:{date_col} Type:{type_col} CHQ:{chqno_col} "
-      f"PrevPend:{prevpend_col} OldAcct:{oldacct_col} "
-      f"Pend:{pending_col} Cash:{cash_col}")
+# Previous Pending per PADVCHNO = sum PURPAIDAMT for BILLDATE < TAKEOVER
+prev_by_padvch = defaultdict(float)
+for r in paidtran:
+    bd = to_date(r["BILLDATE"])
+    if bd and bd < TAKEOVER:
+        prev_by_padvch[r["PADVCHNO"]] += flt(r["PURPAIDAMT"])
 
-cnt_matched = cnt_prev = cnt_pending_unpaid = cnt_pending_partial = cnt_cash = 0
+cnt_old = cnt_pend = cnt_prev = 0
 
-for row_idx in range(2, ws_sys.max_row + 1):
-    vou_cell = ws_sys.cell(row=row_idx, column=1).value
-    vou_str  = safe_int_str(vou_cell)
-    if not vou_str:
+for ri in range(2, ws_sys.max_row + 1):
+    vou_val = ws_sys.cell(row=ri, column=1).value
+    if vou_val is None:
+        continue
+    try:
+        vou_str = str(int(float(vou_val)))
+    except:
         continue
 
-    amount = flt(ws_sys.cell(row=row_idx, column=amount_col).value) if amount_col else 0
+    # System_Purchase Amount (invoice total)
+    inv_amt = flt(ws_sys.cell(row=ri, column=amt_col).value) if amt_col else 0
 
-    # Find PAIDTRAN rows for this purchase voucher
-    # ONLY use entries where BILLDATE >= 29-May-2025 (post-takeover)
-    all_tran = tran_by_purvch.get(vou_str, [])
-    tran_rows = [r for r in all_tran
-                 if (bd := parse_date(r["BILLDATE"])) and bd >= TAKEOVER_DT]
+    # Find PAIDTRAN entries (post-takeover only)
+    tran_rows = tran_by_purvch.get(vou_str, [])
 
     if not tran_rows:
-        # No payment found — leave ALL columns blank (do NOT fill Pending)
-        cnt_pending_unpaid += 1
+        # ── No payment recorded at all -> leave blank (user said don't fill anything)
         continue
 
-    cnt_matched += 1
-
-    # Use first PAIDTRAN row (post-takeover) to get PAIDMAST
     tr       = tran_rows[0]
     padvchno = tr["PADVCHNO"]
-    mast_row = mast_by_vch.get(padvchno, {})
+    mast     = mast_map.get(padvchno, {})
+    chq_no   = mast.get("CHQNO", "").strip()
+    chq_dt   = to_date(mast.get("CHQDATE", ""))
+    paid_amt = flt(tr["PURPAIDAMT"])
 
-    if mast_row:
-        chq_no = mast_row.get("CHQNO", "").strip()
-        chq_dt = parse_date(mast_row.get("CHQDATE", ""))
+    # Determine payment type label
+    if chq_no.upper() in ("GPAY","NEFT","RTGS","UPI","CASH"):
+        ptype = chq_no.upper()
+        chq_display = ""
+    else:
+        ptype = "CHQ"
+        chq_display = chq_no
 
-        if chq_no.upper() in ("GPAY","NEFT","RTGS","UPI","CASH"):
-            display_type = chq_no.upper()
-            chq_display  = ""
-        else:
-            display_type = "CHQ"
-            chq_display  = chq_no
+    # Is this CHQ confirmed by bank?
+    chq_in_bank = chq_no.isdigit() and int(chq_no) in confirmed_chqs
 
-        # Date
-        if date_col:
-            ws_sys.cell(row=row_idx, column=date_col, value=chq_dt).fill = fill(C_YELLOW)
-        # Type
-        if type_col:
-            ws_sys.cell(row=row_idx, column=type_col, value=display_type).fill = fill(C_YELLOW)
-        # CHQ No.
-        if chqno_col:
-            ws_sys.cell(row=row_idx, column=chqno_col, value=chq_display).fill = fill(C_YELLOW)
-
-        # Cash column
-        if chq_no.upper() == "CASH" and cash_col:
-            paid_amt = flt(tr["PURPAIDAMT"])
-            ws_sys.cell(row=row_idx, column=cash_col, value=paid_amt).fill = fill(C_GREY)
-            cnt_cash += 1
-
-    # Previous Pending (sum of pre-takeover PURPAIDAMT in same payment)
-    prev_amt = prev_pend_by_padvch.get(padvchno, 0)
-    if prev_amt > 0 and prevpend_col:
-        ws_sys.cell(row=row_idx, column=prevpend_col, value=round(prev_amt, 2)).fill = fill(C_GOLD)
+    # Previous Pending (old bills bundled in same payment)
+    prev_amt = prev_by_padvch.get(padvchno, 0)
+    if prev_amt > 0 and prev_col:
+        ws_sys.cell(row=ri, column=prev_col, value=round(prev_amt, 2)).fill = F(GOLD)
         cnt_prev += 1
 
-    # Old Account = PURPAIDAMT of this specific matched row
-    paid_amt = flt(tr["PURPAIDAMT"])
-    if paid_amt and oldacct_col:
-        ws_sys.cell(row=row_idx, column=oldacct_col, value=round(paid_amt, 2)).fill = fill(C_BLUE_LIGHT)
-
-    # Pending = PURBALAMT only if > 0 (partial payment — some balance remaining)
-    bal_amt = flt(tr["PURBALAMT"])
-    if bal_amt > 0 and pending_col:
-        ws_sys.cell(row=row_idx, column=pending_col, value=round(bal_amt, 2)).fill = fill(C_GREY)
-        cnt_pending_partial += 1
-    elif pending_col:
-        # Fully paid — clear any stale value, leave blank
-        ws_sys.cell(row=row_idx, column=pending_col).value = None
+    if chq_in_bank:
+        # ── Bank CONFIRMED -> fill Date, CHQ No., Old Account
+        if date_col:
+            ws_sys.cell(row=ri, column=date_col,  value=chq_dt).fill  = F(YELLOW)
+        if type_col:
+            ws_sys.cell(row=ri, column=type_col,  value=ptype).fill   = F(YELLOW)
+        if chqno_col:
+            ws_sys.cell(row=ri, column=chqno_col, value=chq_display).fill = F(YELLOW)
+        if old_col:
+            ws_sys.cell(row=ri, column=old_col, value=round(paid_amt, 2)).fill = F(LBLUE)
+        cnt_old += 1
+    else:
+        # ── Not in bank -> Pending = invoice Amount
+        if pend_col and inv_amt:
+            ws_sys.cell(row=ri, column=pend_col, value=inv_amt).fill = F(RED)
+        cnt_pend += 1
 
 wb_sys.save("System_Puchase.xlsx")
-print(f"  Matched (paid)         : {cnt_matched}")
-print(f"  With Previous Pending  : {cnt_prev}")
-print(f"  Unpaid (Pending=Amount): {cnt_pending_unpaid}")
-print(f"  Partial pay (Pending>0): {cnt_pending_partial}")
-print(f"  Cash payments          : {cnt_cash}")
-print("  Saved.")
+print(f"  Old Account filled (bank confirmed) : {cnt_old}")
+print(f"  Pending filled (not in bank)        : {cnt_pend}")
+print(f"  Previous Pending filled             : {cnt_prev}")
+print("  Saved: System_Puchase.xlsx")
 
 
-# ── Final Summary ─────────────────────────────────────────────────────────────
-print("\n" + "=" * 65)
-print("FINAL RECONCILIATION SUMMARY")
-print("=" * 65)
-print(f"  Takeover Date   : 29-May-2025")
+# ── Summary ───────────────────────────────────────────────────────────────────
+print("\n" + "=" * 60)
+print("RECONCILIATION COMPLETE")
+print("=" * 60)
+print(f"  Takeover Date     : 29-May-2025")
 print()
 print("  BANK STATEMENT:")
-print(f"    CHQ matched (in system)    : {cnt_chq}")
-print(f"    GPAY/NEFT matched (by amt) : {cnt_gpay}")
-print(f"    NOT_IN_SYSTEM (pre-takeover CHQ) : {cnt_not_sys}")
+print(f"    CHQ matched (in PAIDMAST)  : {cnt_bank_chq}")
+print(f"    NOT_IN_SYSTEM (pre-takeover): {cnt_bank_not_sys}")
 print()
 print("  SYSTEM_PURCHASE:")
-print(f"    Bills with payment found   : {cnt_matched}")
-print(f"    Bills UNPAID (Pending set) : {cnt_pending_unpaid}")
-print(f"    Bills partial pay          : {cnt_pending_partial}")
-total_prev = sum(prev_pend_by_padvch.values())
-print(f"    Total Previous Pending     : Rs. {total_prev:,.2f}")
+print(f"    Old Account (bank confirmed): {cnt_old}")
+print(f"    Pending (not in bank)       : {cnt_pend}")
+print(f"    Previous Pending (old bills): {cnt_prev}")
 print()
-print("  OUTPUT FILES:")
+print("  FILES SAVED:")
 print("    DBF_Joined_Data.xlsx")
 print("    Old_Bank_Statement_Shree_Seva_Medical.xlsx")
 print("    System_Puchase.xlsx")
-print("=" * 65)
+print("=" * 60)
