@@ -135,37 +135,61 @@ wb_j.save("DBF_Joined_Data.xlsx")
 print("  Saved: DBF_Joined_Data.xlsx")
 
 
-# ── Step 2: Build Bank Statement CHQ lookup ───────────────────────────────────
-print("\nStep 2 : Scanning Bank Statement for CHQ PAID entries...")
+# ── Step 2: Build Bank Statement CHQ + GPAY lookup ───────────────────────────
+print("\nStep 2 : Scanning Bank Statement for CHQ PAID + GPAY/NEFT entries...")
 wb_bank = openpyxl.load_workbook("Old_Bank_Statement_Shree_Seva_Medical.xlsx")
 ws_bank = wb_bank.active
 
-# chq_int -> bank row date
+# CHQ: chq_int -> bank date
 bank_chq_date = {}
-# All rows for flagging NOT_IN_SYSTEM
+# GPAY/NEFT: withdrawal_amount -> paidmast_row (only if unique match)
+gpay_amt_to_mast = {}
+
+# Build GPAY/NEFT lookup from PAIDMAST (amount -> list of rows)
+gpay_by_amt = defaultdict(list)
+for r in paidmast:
+    chq = r["CHQNO"].strip().upper()
+    if chq in ("GPAY", "UPI", "NEFT", "RTGS", "IMPS", "CASH"):
+        try:
+            amt = int(float(r["PADVCHAMT"]))
+            if amt > 0:
+                gpay_by_amt[amt].append(r)
+        except: pass
+
+# Scan bank statement
 for row in ws_bank.iter_rows(min_row=2, values_only=True):
     narr = str(row[1]) if row[1] else ""
-    if "CHQ PAID" not in narr.upper():
-        continue
-    nums = re.findall(r"\d+", narr)
-    if not nums:
-        continue
-    chq_int = int(nums[-1])
-    # Store earliest bank date for this CHQ
-    bank_dt = row[0] if isinstance(row[0], date) else None
-    if bank_dt is None and row[0]:
-        try: bank_dt = row[0].date() if hasattr(row[0],'date') else None
+    wd   = row[5]   # Withdrawal_Amt (DR entries)
+
+    # ── CHQ PAID entries
+    if "CHQ PAID" in narr.upper():
+        nums = re.findall(r"\d+", narr)
+        if nums:
+            chq_int = int(nums[-1])
+            if chq_int not in bank_chq_date:
+                bank_dt = row[0]
+                if hasattr(bank_dt, "date"): bank_dt = bank_dt.date()
+                bank_chq_date[chq_int] = bank_dt
+
+    # ── GPAY / UPI / NEFT / RTGS entries (match by withdrawal amount)
+    elif wd and any(x in narr.upper() for x in ["UPI","GPAY","PAYTM","PHONEPE","NEFT","RTGS","IMPS"]):
+        try:
+            amt = int(float(wd))
+            candidates = gpay_by_amt.get(amt, [])
+            if len(candidates) == 1:          # unique amount = confident match
+                gpay_amt_to_mast[amt] = candidates[0]
         except: pass
-    if chq_int not in bank_chq_date:
-        bank_chq_date[chq_int] = bank_dt
 
-print(f"  Unique CHQ PAID numbers in bank: {len(bank_chq_date)}")
-
-# Set of confirmed CHQs (in bank)
+# Set of confirmed CHQs
 confirmed_chqs = set(bank_chq_date.keys())
+# Set of confirmed GPAY PADVCHNO
+confirmed_gpay_padvch = {r["PADVCHNO"] for r in gpay_amt_to_mast.values()}
 
-# PAIDMAST CHQ -> PADVCHNO map (numeric CHQs)
-# If duplicate CHQ, store list
+print(f"  CHQ PAID confirmed   : {len(confirmed_chqs)}")
+print(f"  GPAY/NEFT confirmed  : {len(gpay_amt_to_mast)} payments -> "
+      f"{sum(len(tran_by_padvch.get(r['PADVCHNO'],[])) for r in gpay_amt_to_mast.values())} PAIDTRAN entries")
+
+# PAIDMAST CHQ -> PADVCHNO map (numeric CHQs, list for duplicates)
 chq_to_padvch = defaultdict(list)
 for r in paidmast:
     c = r["CHQNO"].strip()
@@ -255,7 +279,10 @@ for r in paidtran:
     if bd and bd < TAKEOVER:
         prev_by_padvch[r["PADVCHNO"]] += flt(r["PURPAIDAMT"])
 
-cnt_old = cnt_pend = cnt_prev = 0
+cnt_old = cnt_gpay = cnt_pend = cnt_prev = 0
+
+# Columns to clear before fresh fill
+cols_to_clear = [c for c in [date_col, type_col, chqno_col, prev_col, old_col, new_col, pend_col, cash_col] if c]
 
 for ri in range(2, ws_sys.max_row + 1):
     vou_val = ws_sys.cell(row=ri, column=1).value
@@ -266,6 +293,11 @@ for ri in range(2, ws_sys.max_row + 1):
     except:
         continue
 
+    # Clear old values first (fresh run)
+    for c in cols_to_clear:
+        ws_sys.cell(row=ri, column=c).value = None
+        ws_sys.cell(row=ri, column=c).fill  = F("FFFFFF")
+
     # System_Purchase Amount (invoice total)
     inv_amt = flt(ws_sys.cell(row=ri, column=amt_col).value) if amt_col else 0
 
@@ -273,7 +305,7 @@ for ri in range(2, ws_sys.max_row + 1):
     tran_rows = tran_by_purvch.get(vou_str, [])
 
     if not tran_rows:
-        # ── No payment recorded at all -> leave blank (user said don't fill anything)
+        # No payment recorded -> leave blank
         continue
 
     tr       = tran_rows[0]
@@ -283,42 +315,48 @@ for ri in range(2, ws_sys.max_row + 1):
     chq_dt   = to_date(mast.get("CHQDATE", ""))
     paid_amt = flt(tr["PURPAIDAMT"])
 
-    # Determine payment type label
-    if chq_no.upper() in ("GPAY","NEFT","RTGS","UPI","CASH"):
-        ptype = chq_no.upper()
+    # Payment type
+    chq_upper = chq_no.upper()
+    if chq_upper in ("GPAY", "UPI", "NEFT", "RTGS", "IMPS", "CASH"):
+        ptype       = chq_upper
         chq_display = ""
     else:
-        ptype = "CHQ"
+        ptype       = "CHQ"
         chq_display = chq_no
 
-    # Is this CHQ confirmed by bank?
-    chq_in_bank = chq_no.isdigit() and int(chq_no) in confirmed_chqs
+    # Is this payment confirmed by bank?
+    chq_in_bank  = chq_no.isdigit() and int(chq_no) in confirmed_chqs
+    gpay_in_bank = padvchno in confirmed_gpay_padvch
 
-    # Previous Pending (old bills bundled in same payment)
+    bank_confirmed = chq_in_bank or gpay_in_bank
+
+    # Previous Pending (old bills bundled in same payment voucher)
     prev_amt = prev_by_padvch.get(padvchno, 0)
     if prev_amt > 0 and prev_col:
         ws_sys.cell(row=ri, column=prev_col, value=round(prev_amt, 2)).fill = F(GOLD)
         cnt_prev += 1
 
-    if chq_in_bank:
-        # ── Bank CONFIRMED -> fill Date, CHQ No., Old Account
+    if bank_confirmed:
+        # ── CONFIRMED by bank -> fill Date, Type, CHQ/GPAY No., Old Account
         if date_col:
-            ws_sys.cell(row=ri, column=date_col,  value=chq_dt).fill  = F(YELLOW)
+            ws_sys.cell(row=ri, column=date_col,  value=chq_dt).fill    = F(YELLOW)
         if type_col:
-            ws_sys.cell(row=ri, column=type_col,  value=ptype).fill   = F(YELLOW)
+            ws_sys.cell(row=ri, column=type_col,  value=ptype).fill     = F(YELLOW)
         if chqno_col:
             ws_sys.cell(row=ri, column=chqno_col, value=chq_display).fill = F(YELLOW)
         if old_col:
-            ws_sys.cell(row=ri, column=old_col, value=round(paid_amt, 2)).fill = F(LBLUE)
-        cnt_old += 1
+            ws_sys.cell(row=ri, column=old_col,   value=round(paid_amt, 2)).fill = F(LBLUE)
+        if chq_in_bank:  cnt_old  += 1
+        else:            cnt_gpay += 1
     else:
-        # ── Not in bank -> Pending = invoice Amount
+        # ── NOT confirmed by bank -> Pending = invoice Amount
         if pend_col and inv_amt:
             ws_sys.cell(row=ri, column=pend_col, value=inv_amt).fill = F(RED)
         cnt_pend += 1
 
 wb_sys.save("System_Puchase.xlsx")
-print(f"  Old Account filled (bank confirmed) : {cnt_old}")
+print(f"  Old Account filled (CHQ confirmed)  : {cnt_old}")
+print(f"  Old Account filled (GPAY confirmed) : {cnt_gpay}")
 print(f"  Pending filled (not in bank)        : {cnt_pend}")
 print(f"  Previous Pending filled             : {cnt_prev}")
 print("  Saved: System_Puchase.xlsx")
@@ -335,7 +373,8 @@ print(f"    CHQ matched (in PAIDMAST)  : {cnt_bank_chq}")
 print(f"    NOT_IN_SYSTEM (pre-takeover): {cnt_bank_not_sys}")
 print()
 print("  SYSTEM_PURCHASE:")
-print(f"    Old Account (bank confirmed): {cnt_old}")
+print(f"    Old Account - CHQ confirmed : {cnt_old}")
+print(f"    Old Account - GPAY confirmed: {cnt_gpay}")
 print(f"    Pending (not in bank)       : {cnt_pend}")
 print(f"    Previous Pending (old bills): {cnt_prev}")
 print()
