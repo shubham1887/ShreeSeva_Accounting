@@ -213,39 +213,59 @@ bvch_col  = get_or_add_col(ws_bank, bh, "Voucher_No")
 bpty_col  = get_or_add_col(ws_bank, bh, "Party_Name")
 bsts_col  = get_or_add_col(ws_bank, bh, "Match_Status")
 
-cnt_bank_chq = cnt_bank_not_sys = 0
+PURPLE = "D9B3FF"
+
+# Build reverse map: PADVCHNO -> bank withdrawal amount (for GPAY)
+gpay_padvch_to_bankamt = {r["PADVCHNO"]: amt for amt, r in gpay_amt_to_mast.items()}
+
+cnt_bank_chq = cnt_bank_not_sys = cnt_bank_gpay = 0
 for row_idx in range(2, ws_bank.max_row + 1):
     narr = str(ws_bank.cell(row=row_idx, column=2).value or "")
-    if "CHQ PAID" not in narr.upper():
-        continue
-    nums = re.findall(r"\d+", narr)
-    if not nums:
-        continue
-    chq_int = int(nums[-1])
+    narr_up = narr.upper()
+    wd = ws_bank.cell(row=row_idx, column=6).value
 
-    padvchno_list = chq_to_padvch.get(chq_int, [])
-    if padvchno_list:
-        # Confirmed in both bank and PAIDMAST
-        # Write PURVCHNO list from PAIDTRAN
-        purvchno_all = []
-        party_names  = set()
-        for pv in padvchno_list:
-            for tr in tran_by_padvch.get(pv, []):
-                purvchno_all.append(tr["PURVCHNO"])
-            mast = mast_map.get(pv, {})
-            party_names.add(acct_map.get(mast.get("ACCOID",""), ""))
+    # ── CHQ PAID entries
+    if "CHQ PAID" in narr_up:
+        nums = re.findall(r"\d+", narr)
+        if not nums:
+            continue
+        chq_int = int(nums[-1])
+        padvchno_list = chq_to_padvch.get(chq_int, [])
+        if padvchno_list:
+            purvchno_all = []
+            party_names  = set()
+            for pv in padvchno_list:
+                for tr in tran_by_padvch.get(pv, []):
+                    purvchno_all.append(tr["PURVCHNO"])
+                mast = mast_map.get(pv, {})
+                party_names.add(acct_map.get(mast.get("ACCOID",""), ""))
+            ws_bank.cell(row=row_idx, column=bvch_col, value=",".join(purvchno_all)).fill = F(GREEN)
+            ws_bank.cell(row=row_idx, column=bpty_col, value=" / ".join(p for p in party_names if p)).fill = F(GREEN)
+            ws_bank.cell(row=row_idx, column=bsts_col, value="CHQ_MATCHED").fill = F(GREEN)
+            cnt_bank_chq += 1
+        else:
+            ws_bank.cell(row=row_idx, column=bsts_col, value="NOT_IN_SYSTEM").fill = F(RED)
+            cnt_bank_not_sys += 1
 
-        ws_bank.cell(row=row_idx, column=bvch_col, value=",".join(purvchno_all)).fill = F(GREEN)
-        ws_bank.cell(row=row_idx, column=bpty_col, value=" / ".join(p for p in party_names if p)).fill = F(GREEN)
-        ws_bank.cell(row=row_idx, column=bsts_col, value="CHQ_MATCHED").fill = F(GREEN)
-        cnt_bank_chq += 1
-    else:
-        # CHQ in bank but not in PAIDMAST -> pre-system
-        ws_bank.cell(row=row_idx, column=bsts_col, value="NOT_IN_SYSTEM").fill = F(RED)
-        cnt_bank_not_sys += 1
+    # ── GPAY / UPI / NEFT / RTGS entries (last resort: unique amount match)
+    elif wd and any(x in narr_up for x in ["UPI","GPAY","PAYTM","PHONEPE","NEFT","RTGS","IMPS"]):
+        try:
+            amt = int(float(wd))
+            mast_row = gpay_amt_to_mast.get(amt)
+            if mast_row:
+                pv = mast_row["PADVCHNO"]
+                purvchno_all = [tr["PURVCHNO"] for tr in tran_by_padvch.get(pv, [])]
+                party_name   = acct_map.get(mast_row.get("ACCOID",""), "")
+                ws_bank.cell(row=row_idx, column=bvch_col, value=",".join(purvchno_all)).fill = F(PURPLE)
+                ws_bank.cell(row=row_idx, column=bpty_col, value=party_name).fill = F(PURPLE)
+                ws_bank.cell(row=row_idx, column=bsts_col, value="GPAY_MATCHED").fill = F(PURPLE)
+                cnt_bank_gpay += 1
+        except:
+            pass
 
 wb_bank.save("Old_Bank_Statement_Shree_Seva_Medical.xlsx")
 print(f"  CHQ matched (in system)  : {cnt_bank_chq}")
+print(f"  GPAY matched (in system) : {cnt_bank_gpay}")
 print(f"  NOT_IN_SYSTEM (pre-takeover) : {cnt_bank_not_sys}")
 print("  Saved: Old_Bank_Statement_Shree_Seva_Medical.xlsx")
 
@@ -370,6 +390,7 @@ print(f"  Takeover Date     : 29-May-2025")
 print()
 print("  BANK STATEMENT:")
 print(f"    CHQ matched (in PAIDMAST)  : {cnt_bank_chq}")
+print(f"    GPAY matched (in PAIDMAST) : {cnt_bank_gpay}")
 print(f"    NOT_IN_SYSTEM (pre-takeover): {cnt_bank_not_sys}")
 print()
 print("  SYSTEM_PURCHASE:")
