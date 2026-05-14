@@ -198,7 +198,18 @@ for r in paidmast:
 
 
 # ── Step 3: Update Bank Statement columns ─────────────────────────────────────
-# Add: Voucher_No (PURVCHNO list), Party_Name, Match_Status
+# Load System_Purchase voucher numbers so we know which PURVCHNOs exist there
+wb_sys_pre = openpyxl.load_workbook("System_Puchase.xlsx")
+ws_sys_pre = wb_sys_pre.active
+sys_vouchers = set()
+for ri in range(2, ws_sys_pre.max_row + 1):
+    v = ws_sys_pre.cell(row=ri, column=1).value
+    if v is not None:
+        try:
+            sys_vouchers.add(str(int(float(v))))
+        except:
+            pass
+
 bh = [c.value for c in ws_bank[1]]
 
 def get_or_add_col(ws, headers, name):
@@ -207,16 +218,34 @@ def get_or_add_col(ws, headers, name):
     col = ws.max_column + 1
     c = ws.cell(row=1, column=col, value=name)
     c.fill = F(ORANGE); c.font = FT(WHITE, bold=True)
+    headers.append(name)
     return col
 
-bvch_col  = get_or_add_col(ws_bank, bh, "Voucher_No")
+bvch_col  = get_or_add_col(ws_bank, bh, "Voucher_No")      # in System_Purchase
+boldvch_col = get_or_add_col(ws_bank, bh, "Old_Voucher_No") # NOT in System_Purchase
 bpty_col  = get_or_add_col(ws_bank, bh, "Party_Name")
 bsts_col  = get_or_add_col(ws_bank, bh, "Match_Status")
 
 PURPLE = "D9B3FF"
 
-# Build reverse map: PADVCHNO -> bank withdrawal amount (for GPAY)
-gpay_padvch_to_bankamt = {r["PADVCHNO"]: amt for amt, r in gpay_amt_to_mast.items()}
+def fill_bank_row(row_idx, padvchno_list, fill_color, status):
+    """Fill Voucher_No / Old_Voucher_No / Party_Name / Match_Status for one bank row."""
+    in_sys     = []
+    not_in_sys = []
+    party_names = set()
+    for pv in padvchno_list:
+        for tr in tran_by_padvch.get(pv, []):
+            vno = tr["PURVCHNO"]
+            (in_sys if vno in sys_vouchers else not_in_sys).append(vno)
+        mast = mast_map.get(pv, {})
+        party_names.add(acct_map.get(mast.get("ACCOID", ""), ""))
+
+    if in_sys:
+        ws_bank.cell(row=row_idx, column=bvch_col,   value=",".join(in_sys)).fill   = F(fill_color)
+    if not_in_sys:
+        ws_bank.cell(row=row_idx, column=boldvch_col, value=",".join(not_in_sys)).fill = F(GOLD)
+    ws_bank.cell(row=row_idx, column=bpty_col, value=" / ".join(p for p in party_names if p)).fill = F(fill_color)
+    ws_bank.cell(row=row_idx, column=bsts_col, value=status).fill = F(fill_color)
 
 cnt_bank_chq = cnt_bank_not_sys = cnt_bank_gpay = 0
 for row_idx in range(2, ws_bank.max_row + 1):
@@ -232,16 +261,7 @@ for row_idx in range(2, ws_bank.max_row + 1):
         chq_int = int(nums[-1])
         padvchno_list = chq_to_padvch.get(chq_int, [])
         if padvchno_list:
-            purvchno_all = []
-            party_names  = set()
-            for pv in padvchno_list:
-                for tr in tran_by_padvch.get(pv, []):
-                    purvchno_all.append(tr["PURVCHNO"])
-                mast = mast_map.get(pv, {})
-                party_names.add(acct_map.get(mast.get("ACCOID",""), ""))
-            ws_bank.cell(row=row_idx, column=bvch_col, value=",".join(purvchno_all)).fill = F(GREEN)
-            ws_bank.cell(row=row_idx, column=bpty_col, value=" / ".join(p for p in party_names if p)).fill = F(GREEN)
-            ws_bank.cell(row=row_idx, column=bsts_col, value="CHQ_MATCHED").fill = F(GREEN)
+            fill_bank_row(row_idx, padvchno_list, GREEN, "CHQ_MATCHED")
             cnt_bank_chq += 1
         else:
             ws_bank.cell(row=row_idx, column=bsts_col, value="NOT_IN_SYSTEM").fill = F(RED)
@@ -253,12 +273,7 @@ for row_idx in range(2, ws_bank.max_row + 1):
             amt = int(float(wd))
             mast_row = gpay_amt_to_mast.get(amt)
             if mast_row:
-                pv = mast_row["PADVCHNO"]
-                purvchno_all = [tr["PURVCHNO"] for tr in tran_by_padvch.get(pv, [])]
-                party_name   = acct_map.get(mast_row.get("ACCOID",""), "")
-                ws_bank.cell(row=row_idx, column=bvch_col, value=",".join(purvchno_all)).fill = F(PURPLE)
-                ws_bank.cell(row=row_idx, column=bpty_col, value=party_name).fill = F(PURPLE)
-                ws_bank.cell(row=row_idx, column=bsts_col, value="GPAY_MATCHED").fill = F(PURPLE)
+                fill_bank_row(row_idx, [mast_row["PADVCHNO"]], PURPLE, "GPAY_MATCHED")
                 cnt_bank_gpay += 1
         except:
             pass
