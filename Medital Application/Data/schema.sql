@@ -981,5 +981,5 @@ INSERT OR IGNORE INTO Accounts(TenantId, AccountCode, AccountName, GroupId)
 SELECT 1, 'CASH001', 'Cash', Id FROM AccountGroups WHERE GroupCode='CASH' AND TenantId=1;
 
 -- Default admin user (password: admin123 – SHA256 hashed)
-INSERT OR IGNORE INTO Users(TenantId, UserCode, UserName, PasswordHash, IsAdmin, IsActive)
-VALUES (1, 'ADMIN', 'Administrator', '240be518fabd2724ddb6f04eeb1da5967448d7e831d729d4c85d47e3bd9c03c5', 1, 1);
+INSERT OR REPLACE INTO Users(TenantId, UserCode, UserName, PasswordHash, IsAdmin, IsActive)
+VALUES (1, 'ADMIN', 'Administrator', '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', 1, 1);
