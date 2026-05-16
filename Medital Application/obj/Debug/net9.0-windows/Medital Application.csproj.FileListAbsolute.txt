@@ -1,0 +1,20 @@
+C:\Users\Shubham\OneDrive\Desktop\SHUBHAM CODE\Medital Application\bin\Debug\net9.0-windows\Medital Application.exe
+C:\Users\Shubham\OneDrive\Desktop\SHUBHAM CODE\Medital Application\bin\Debug\net9.0-windows\Medital Application.deps.json
+C:\Users\Shubham\OneDrive\Desktop\SHUBHAM CODE\Medital Application\bin\Debug\net9.0-windows\Medital Application.runtimeconfig.json
+C:\Users\Shubham\OneDrive\Desktop\SHUBHAM CODE\Medital Application\bin\Debug\net9.0-windows\Medital Application.dll
+C:\Users\Shubham\OneDrive\Desktop\SHUBHAM CODE\Medital Application\bin\Debug\net9.0-windows\Medital Application.pdb
+C:\Users\Shubham\OneDrive\Desktop\SHUBHAM CODE\Medital Application\obj\Debug\net9.0-windows\MainWindow.g.cs
+C:\Users\Shubham\OneDrive\Desktop\SHUBHAM CODE\Medital Application\obj\Debug\net9.0-windows\App.g.cs
+C:\Users\Shubham\OneDrive\Desktop\SHUBHAM CODE\Medital Application\obj\Debug\net9.0-windows\Medital Application_MarkupCompile.cache
+C:\Users\Shubham\OneDrive\Desktop\SHUBHAM CODE\Medital Application\obj\Debug\net9.0-windows\Medital Application_MarkupCompile.lref
+C:\Users\Shubham\OneDrive\Desktop\SHUBHAM CODE\Medital Application\obj\Debug\net9.0-windows\MainWindow.baml
+C:\Users\Shubham\OneDrive\Desktop\SHUBHAM CODE\Medital Application\obj\Debug\net9.0-windows\Medital Application.g.resources
+C:\Users\Shubham\OneDrive\Desktop\SHUBHAM CODE\Medital Application\obj\Debug\net9.0-windows\Medital Application.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Shubham\OneDrive\Desktop\SHUBHAM CODE\Medital Application\obj\Debug\net9.0-windows\Medital Application.AssemblyInfoInputs.cache
+C:\Users\Shubham\OneDrive\Desktop\SHUBHAM CODE\Medital Application\obj\Debug\net9.0-windows\Medital Application.AssemblyInfo.cs
+C:\Users\Shubham\OneDrive\Desktop\SHUBHAM CODE\Medital Application\obj\Debug\net9.0-windows\Medital Application.csproj.CoreCompileInputs.cache
+C:\Users\Shubham\OneDrive\Desktop\SHUBHAM CODE\Medital Application\obj\Debug\net9.0-windows\Medital Application.dll
+C:\Users\Shubham\OneDrive\Desktop\SHUBHAM CODE\Medital Application\obj\Debug\net9.0-windows\refint\Medital Application.dll
+C:\Users\Shubham\OneDrive\Desktop\SHUBHAM CODE\Medital Application\obj\Debug\net9.0-windows\Medital Application.pdb
+C:\Users\Shubham\OneDrive\Desktop\SHUBHAM CODE\Medital Application\obj\Debug\net9.0-windows\Medital Application.genruntimeconfig.cache
+C:\Users\Shubham\OneDrive\Desktop\SHUBHAM CODE\Medital Application\obj\Debug\net9.0-windows\ref\Medital Application.dll
