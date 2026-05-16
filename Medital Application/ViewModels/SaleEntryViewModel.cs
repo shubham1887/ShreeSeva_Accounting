@@ -108,7 +108,7 @@ public partial class SaleEntryViewModel : ObservableObject
             StockId = firstBatch.Id,
             Quantity = 1,
             SaleRate = firstBatch.SaleRate > 0 ? firstBatch.SaleRate : product.DefaultSaleRate,
-            MRP = firstBatch.MRP > 0 ? firstBatch.MRP : product.DefaultMRP,
+            Mrp = firstBatch.MRP > 0 ? firstBatch.MRP : product.DefaultMRP,
             SgstRate = product.SGSTRate,
             CgstRate = product.CGSTRate,
             IgstRate = product.IGSTRate,

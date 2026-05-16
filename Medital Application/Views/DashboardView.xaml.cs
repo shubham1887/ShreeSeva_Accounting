@@ -12,6 +12,6 @@ public partial class DashboardView : UserControl
         InitializeComponent();
         _vm = vm;
         DataContext = vm;
-        Loaded += async (_, _) => await vm.LoadAsyncCommand.ExecuteAsync(null);
+        Loaded += async (_, _) => await vm.LoadCommand.ExecuteAsync(null);
     }
 }

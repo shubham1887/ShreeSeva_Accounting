@@ -9,6 +9,6 @@ public partial class SalesReportView : UserControl
     {
         InitializeComponent();
         DataContext = vm;
-        Loaded += async (_, _) => await vm.LoadAsyncCommand.ExecuteAsync(null);
+        Loaded += async (_, _) => await vm.LoadCommand.ExecuteAsync(null);
     }
 }

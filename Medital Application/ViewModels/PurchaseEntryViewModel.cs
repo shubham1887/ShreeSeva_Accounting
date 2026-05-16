@@ -82,7 +82,7 @@ public partial class PurchaseEntryViewModel : ObservableObject
             ProductName = product.ProductName,
             Quantity = 1,
             ActualRate = product.LastPurchaseRate,
-            MRP = product.DefaultMRP,
+            Mrp = product.DefaultMRP,
             SaleRate = product.DefaultSaleRate,
             SgstRate = product.SGSTRate,
             CgstRate = product.CGSTRate,

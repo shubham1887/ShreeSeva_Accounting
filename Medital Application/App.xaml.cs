@@ -13,6 +13,7 @@ using Medital_Application.Views.Settings;
 using Medital_Application.Views.Stock;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System.IO;
 using System.Windows;
 

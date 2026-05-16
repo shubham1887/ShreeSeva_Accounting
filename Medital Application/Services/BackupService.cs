@@ -2,6 +2,7 @@ using Medital_Application.Data;
 using Medital_Application.Services.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using System.IO;
 
 namespace Medital_Application.Services;
 

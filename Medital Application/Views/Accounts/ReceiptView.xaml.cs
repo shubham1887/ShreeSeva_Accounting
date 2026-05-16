@@ -15,8 +15,8 @@ public partial class ReceiptView : UserControl
         DataContext = vm;
         KeyDown += (_, e) =>
         {
-            if (e.Key == Key.F10) vm.SaveAsyncCommand.Execute(null);
-            else if (e.Key == Key.Escape) vm.ClearAsyncCommand.Execute(null);
+            if (e.Key == Key.F10) vm.SaveCommand.Execute(null);
+            else if (e.Key == Key.Escape) vm.ClearCommand.Execute(null);
         };
         Loaded += async (_, _) => await vm.InitializeAsync();
     }

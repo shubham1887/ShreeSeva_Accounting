@@ -28,10 +28,10 @@
                 <DatePicker Height="32" Width="130" FontSize="12" SelectedDate="{Binding ToDate}" Margin="0,0,16,0"/>
                 <Button Content="Load" Width="80" Height="32" Background="#1565C0" Foreground="White"
                         FontSize="12" BorderThickness="0" Cursor="Hand"
-                        Command="{Binding LoadAsyncCommand}" Margin="0,0,12,0"/>
+                        Command="{Binding LoadCommand}" Margin="0,0,12,0"/>
                 <Button Content="Export CSV" Width="100" Height="32" Background="#388E3C" Foreground="White"
                         FontSize="12" BorderThickness="0" Cursor="Hand"
-                        Command="{Binding ExportAsyncCommand}"/>
+                        Command="{Binding ExportCommand}"/>
             </StackPanel>
         </Border>
 

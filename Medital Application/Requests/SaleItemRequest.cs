@@ -11,6 +11,7 @@ public class SaleItemRequest
     public decimal SaleRate { get; set; }
     public decimal MRP { get; set; }
     public decimal ItemDiscPer { get; set; }
+    public decimal ItemDiscAmt { get; set; }
     public decimal SGSTRate { get; set; }
     public decimal CGSTRate { get; set; }
     public decimal IGSTRate { get; set; }
