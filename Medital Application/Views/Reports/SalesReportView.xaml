@@ -70,7 +70,7 @@
                     </DataGridTextColumn>
                     <DataGridTextColumn Header="Net Amount" Binding="{Binding NetAmount, StringFormat='N2'}" Width="100">
                         <DataGridTextColumn.ElementStyle>
-                            <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Right" FontWeight="SemiBold"/></Style>
+                            <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Right"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
                     <DataGridTextColumn Header="Mode" Binding="{Binding PaymentMode}" Width="80"/>
