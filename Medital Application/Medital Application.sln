@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36915.13 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Medital Application", "Medital Application.csproj", "{922BC324-6B43-42FF-83AB-7E0E02DDF2B6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Backend", "..\Backend\Backend.csproj", "{0316A514-4E48-4F23-B50E-96455971CFD6}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{922BC324-6B43-42FF-83AB-7E0E02DDF2B6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{922BC324-6B43-42FF-83AB-7E0E02DDF2B6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{922BC324-6B43-42FF-83AB-7E0E02DDF2B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{922BC324-6B43-42FF-83AB-7E0E02DDF2B6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0316A514-4E48-4F23-B50E-96455971CFD6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0316A514-4E48-4F23-B50E-96455971CFD6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0316A514-4E48-4F23-B50E-96455971CFD6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0316A514-4E48-4F23-B50E-96455971CFD6}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {22ECAB8A-17B6-419C-BEA5-7F52D6C30244}
+	EndGlobalSection
+EndGlobal
