@@ -1,0 +1,227 @@
+<UserControl x:Class="Medital_Application.Views.Sales.SaleEntryView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d">
+    <UserControl.InputBindings>
+        <KeyBinding Key="F10" Command="{Binding SaveCommand}"/>
+        <KeyBinding Key="Escape" Command="{Binding ClearFormCommand}"/>
+    </UserControl.InputBindings>
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>  <!-- Header form -->
+            <RowDefinition Height="*"/>     <!-- Items grid -->
+            <RowDefinition Height="Auto"/>  <!-- Footer totals -->
+            <RowDefinition Height="Auto"/>  <!-- Buttons -->
+        </Grid.RowDefinitions>
+
+        <!-- ─── HEADER ─── -->
+        <Border Grid.Row="0" Background="White" CornerRadius="10" Padding="16,12" Margin="0,0,0,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Account -->
+                <StackPanel Grid.Column="0" Grid.Row="0" Margin="0,0,12,8">
+                    <TextBlock Text="Customer Account *" FontSize="11" Foreground="#546E7A" Margin="0,0,0,3"/>
+                    <Grid>
+                        <TextBox Text="{Binding AccountSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="8,6" FontSize="13" BorderBrush="#B0BEC5" BorderThickness="1"/>
+                    </Grid>
+                </StackPanel>
+
+                <!-- Voucher No -->
+                <StackPanel Grid.Column="1" Grid.Row="0" Margin="0,0,12,8">
+                    <TextBlock Text="Voucher No" FontSize="11" Foreground="#546E7A" Margin="0,0,0,3"/>
+                    <TextBox Text="{Binding VoucherNo}" IsReadOnly="True" Padding="8,6" FontSize="13"
+                             Background="#F5F5F5" BorderBrush="#B0BEC5" BorderThickness="1"/>
+                </StackPanel>
+
+                <!-- Date -->
+                <StackPanel Grid.Column="2" Grid.Row="0" Margin="0,0,0,8">
+                    <TextBlock Text="Date" FontSize="11" Foreground="#546E7A" Margin="0,0,0,3"/>
+                    <DatePicker SelectedDate="{Binding VoucherDate}" FontSize="13"/>
+                </StackPanel>
+
+                <!-- Payment mode -->
+                <StackPanel Grid.Column="0" Grid.Row="1" Margin="0,0,12,0">
+                    <TextBlock Text="Payment Mode" FontSize="11" Foreground="#546E7A" Margin="0,0,0,3"/>
+                    <ComboBox SelectedItem="{Binding PaymentMode}" FontSize="13" Padding="6,5">
+                        <ComboBoxItem Content="CASH"/>
+                        <ComboBoxItem Content="CREDIT"/>
+                        <ComboBoxItem Content="CHEQUE"/>
+                        <ComboBoxItem Content="UPI"/>
+                    </ComboBox>
+                </StackPanel>
+
+                <!-- Cash Discount -->
+                <StackPanel Grid.Column="1" Grid.Row="1" Margin="0,0,12,0">
+                    <TextBlock Text="Cash Disc %" FontSize="11" Foreground="#546E7A" Margin="0,0,0,3"/>
+                    <TextBox Text="{Binding CashDiscountPer, UpdateSourceTrigger=PropertyChanged}"
+                             Padding="8,6" FontSize="13" BorderBrush="#B0BEC5" BorderThickness="1"/>
+                </StackPanel>
+
+                <!-- Interstate -->
+                <StackPanel Grid.Column="2" Grid.Row="1" Margin="0,0,0,0" VerticalAlignment="Center">
+                    <CheckBox Content="Interstate (IGST)" IsChecked="{Binding IsInterState}"
+                              FontSize="13" Margin="0,20,0,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ─── ITEMS GRID ─── -->
+        <Border Grid.Row="1" Background="White" CornerRadius="10" Padding="4,4" Margin="0,0,0,8">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Product search bar -->
+                <Grid Grid.Row="0" Margin="8,8,8,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox Text="{Binding ProductSearchText, UpdateSourceTrigger=PropertyChanged}"
+                             Padding="8,7" FontSize="13" BorderBrush="#B0BEC5" BorderThickness="1"
+                             x:Name="TxtProductSearch">
+                        <TextBox.Style>
+                            <Style TargetType="TextBox">
+                                <Style.Triggers>
+                                    <Trigger Property="Text" Value="">
+                                        <Setter Property="Background">
+                                            <Setter.Value>
+                                                <VisualBrush AlignmentX="Left" Stretch="None">
+                                                    <VisualBrush.Visual>
+                                                        <Label Content="Search product (F2)..." Foreground="#9E9E9E" FontSize="13"/>
+                                                    </VisualBrush.Visual>
+                                                </VisualBrush>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBox.Style>
+                    </TextBox>
+                    <Button Grid.Column="1" Content="Search" Command="{Binding SearchProductCommand}"
+                            Background="#1565C0" Foreground="White" Padding="16,7" Margin="8,0,0,0"
+                            BorderThickness="0" Cursor="Hand"/>
+                </Grid>
+
+                <!-- Items DataGrid -->
+                <DataGrid Grid.Row="1" ItemsSource="{Binding Items}"
+                          AutoGenerateColumns="False" CanUserAddRows="False"
+                          GridLinesVisibility="Horizontal" BorderThickness="0"
+                          RowBackground="White" AlternatingRowBackground="#F8FAFB"
+                          HeadersVisibility="Column" ColumnHeaderHeight="36"
+                          Margin="8,0,8,8">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="#" Binding="{Binding SrNo}" Width="40" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Product Name" Binding="{Binding ProductName}" Width="*" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Batch" Binding="{Binding BatchNo}" Width="90" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Expiry" Binding="{Binding ExpiryMY}" Width="70" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Qty" Binding="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}" Width="65"/>
+                        <DataGridTextColumn Header="Free" Binding="{Binding FreeQty}" Width="55"/>
+                        <DataGridTextColumn Header="Rate" Binding="{Binding SaleRate, UpdateSourceTrigger=PropertyChanged}" Width="85"/>
+                        <DataGridTextColumn Header="MRP" Binding="{Binding Mrp}" Width="75"/>
+                        <DataGridTextColumn Header="Disc%" Binding="{Binding ItemDiscPer, UpdateSourceTrigger=PropertyChanged}" Width="60"/>
+                        <DataGridTextColumn Header="GST%" Binding="{Binding SgstRate}" Width="55" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Amount" Binding="{Binding LineTotal, StringFormat='N2'}" Width="100" IsReadOnly="True">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="HorizontalAlignment" Value="Right"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTemplateColumn Header="Del" Width="50">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Button Content="✕" Command="{Binding DataContext.RemoveItemCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                            CommandParameter="{Binding}" Background="Transparent"
+                                            Foreground="#E53935" BorderThickness="0" Cursor="Hand" FontSize="14"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+
+        <!-- ─── FOOTER / TOTALS ─── -->
+        <Border Grid.Row="2" Background="White" CornerRadius="10" Padding="20,12" Margin="0,0,0,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="260"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Narration -->
+                <StackPanel Grid.Column="0" Margin="0,0,20,0">
+                    <TextBlock Text="Narration" FontSize="11" Foreground="#546E7A" Margin="0,0,0,3"/>
+                    <TextBox Text="{Binding Narration}" Padding="8,6" FontSize="13"
+                             BorderBrush="#B0BEC5" BorderThickness="1" Height="60"
+                             AcceptsReturn="True" VerticalScrollBarVisibility="Auto"/>
+                </StackPanel>
+
+                <!-- Totals Panel -->
+                <Border Grid.Column="1" Background="#F5F7FA" CornerRadius="8" Padding="16,12">
+                    <StackPanel>
+                        <Grid Margin="0,2">
+                            <TextBlock Text="Gross Amount" FontSize="12" Foreground="#546E7A"/>
+                            <TextBlock Text="{Binding GrossAmount, StringFormat='₹{0:N2}'}" HorizontalAlignment="Right" FontSize="12"/>
+                        </Grid>
+                        <Grid Margin="0,2">
+                            <TextBlock Text="Item Discount" FontSize="12" Foreground="#546E7A"/>
+                            <TextBlock Text="{Binding ItemDiscAmount, StringFormat='₹{0:N2}'}" HorizontalAlignment="Right" FontSize="12" Foreground="#E53935"/>
+                        </Grid>
+                        <Grid Margin="0,2">
+                            <TextBlock Text="Cash Discount" FontSize="12" Foreground="#546E7A"/>
+                            <TextBlock Text="{Binding CashDiscAmount, StringFormat='₹{0:N2}'}" HorizontalAlignment="Right" FontSize="12" Foreground="#E53935"/>
+                        </Grid>
+                        <Grid Margin="0,2">
+                            <TextBlock Text="SGST + CGST" FontSize="12" Foreground="#546E7A"/>
+                            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                <TextBlock Text="{Binding TotalSGST, StringFormat='₹{0:N2}'}" FontSize="12"/>
+                                <TextBlock Text=" + " FontSize="12" Foreground="#90A4AE"/>
+                                <TextBlock Text="{Binding TotalCGST, StringFormat='₹{0:N2}'}" FontSize="12"/>
+                            </StackPanel>
+                        </Grid>
+                        <Grid Margin="0,2">
+                            <TextBlock Text="Round Off" FontSize="12" Foreground="#546E7A"/>
+                            <TextBlock Text="{Binding RoundOff, StringFormat='₹{0:N2}'}" HorizontalAlignment="Right" FontSize="12"/>
+                        </Grid>
+                        <Separator Margin="0,6"/>
+                        <Grid>
+                            <TextBlock Text="NET AMOUNT" FontSize="15" FontWeight="Bold" Foreground="#1A237E"/>
+                            <TextBlock Text="{Binding NetAmount, StringFormat='₹{0:N2}'}"
+                                       HorizontalAlignment="Right" FontSize="18" FontWeight="Bold" Foreground="#1565C0"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- ─── ACTION BUTTONS ─── -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+            <TextBlock Text="{Binding StatusMessage}" Foreground="#E53935" FontSize="12"
+                       VerticalAlignment="Center" Margin="0,0,16,0"/>
+            <Button Content="Clear (Esc)" Command="{Binding ClearFormCommand}"
+                    Background="#546E7A" Foreground="White" Padding="20,10"
+                    Margin="0,0,8,0" BorderThickness="0" Cursor="Hand"/>
+            <Button Content="Save (F10)" Command="{Binding SaveCommand}"
+                    Background="#1565C0" Foreground="White" Padding="24,10"
+                    BorderThickness="0" Cursor="Hand" FontWeight="SemiBold" FontSize="14"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

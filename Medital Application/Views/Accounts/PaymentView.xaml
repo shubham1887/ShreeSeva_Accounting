@@ -1,0 +1,174 @@
+<UserControl x:Class="Medital_Application.Views.Accounts.PaymentView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             Background="#F5F7FA">
+
+    <UserControl.Resources>
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="#546E7A"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+        <Style x:Key="FieldBox" TargetType="TextBox">
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="BorderBrush" Value="#CFD8DC"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style x:Key="FieldCombo" TargetType="ComboBox">
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style x:Key="ActionBtn" TargetType="Button">
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Padding" Value="20,0"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <TextBlock Grid.Row="0" Text="Payment Voucher" FontSize="20" FontWeight="Bold"
+                   Foreground="#1A237E" Margin="0,0,0,16"/>
+
+        <!-- Form -->
+        <Border Grid.Row="1" Background="White" CornerRadius="8" Padding="20" Margin="0,0,0,16">
+            <Border.Effect>
+                <DropShadowEffect Color="#000000" BlurRadius="8" ShadowDepth="1" Opacity="0.08"/>
+            </Border.Effect>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Voucher No -->
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Voucher No" Style="{StaticResource FieldLabel}"/>
+                    <TextBox x:Name="TxtVoucherNo" Style="{StaticResource FieldBox}"
+                             IsReadOnly="True" Background="#F5F7FA"
+                             Text="{Binding VoucherNo, Mode=OneWay}"/>
+                </StackPanel>
+
+                <!-- Date -->
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="Date" Style="{StaticResource FieldLabel}"/>
+                    <DatePicker Height="34" FontSize="13"
+                                SelectedDate="{Binding VoucherDate}"/>
+                </StackPanel>
+
+                <!-- Supplier (Party) -->
+                <StackPanel Grid.Column="4">
+                    <TextBlock Text="Supplier / Party" Style="{StaticResource FieldLabel}"/>
+                    <ComboBox Style="{StaticResource FieldCombo}"
+                              ItemsSource="{Binding Suppliers}"
+                              DisplayMemberPath="AccountName"
+                              SelectedValuePath="Id"
+                              SelectedValue="{Binding SelectedSupplierId}"/>
+                </StackPanel>
+
+                <!-- Amount -->
+                <StackPanel Grid.Column="6">
+                    <TextBlock Text="Amount (Rs.)" Style="{StaticResource FieldLabel}"/>
+                    <TextBox Style="{StaticResource FieldBox}"
+                             Text="{Binding Amount, StringFormat='N2', UpdateSourceTrigger=LostFocus}"
+                             TextAlignment="Right"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Payment Mode & Details -->
+        <Border Grid.Row="2" Background="White" CornerRadius="8" Padding="20" Margin="0,0,0,16">
+            <Border.Effect>
+                <DropShadowEffect Color="#000000" BlurRadius="8" ShadowDepth="1" Opacity="0.08"/>
+            </Border.Effect>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="16"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Payment Mode -->
+                <StackPanel Grid.Row="0" Grid.Column="0">
+                    <TextBlock Text="Payment Mode" Style="{StaticResource FieldLabel}"/>
+                    <ComboBox Style="{StaticResource FieldCombo}"
+                              SelectedItem="{Binding SelectedPaymentMode}">
+                        <ComboBoxItem>Cash</ComboBoxItem>
+                        <ComboBoxItem>Cheque</ComboBoxItem>
+                        <ComboBoxItem>NEFT</ComboBoxItem>
+                        <ComboBoxItem>UPI</ComboBoxItem>
+                        <ComboBoxItem>RTGS</ComboBoxItem>
+                    </ComboBox>
+                </StackPanel>
+
+                <!-- Cheque No -->
+                <StackPanel Grid.Row="0" Grid.Column="2">
+                    <TextBlock Text="Cheque / Ref No" Style="{StaticResource FieldLabel}"/>
+                    <TextBox Style="{StaticResource FieldBox}"
+                             Text="{Binding ChequeNo}"/>
+                </StackPanel>
+
+                <!-- Cheque Date -->
+                <StackPanel Grid.Row="0" Grid.Column="4">
+                    <TextBlock Text="Cheque Date" Style="{StaticResource FieldLabel}"/>
+                    <DatePicker Height="34" FontSize="13"
+                                SelectedDate="{Binding ChequeDate}"/>
+                </StackPanel>
+
+                <!-- Bank Name -->
+                <StackPanel Grid.Row="0" Grid.Column="6">
+                    <TextBlock Text="Bank Name" Style="{StaticResource FieldLabel}"/>
+                    <TextBox Style="{StaticResource FieldBox}"
+                             Text="{Binding BankName}"/>
+                </StackPanel>
+
+                <!-- Narration -->
+                <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="7">
+                    <TextBlock Text="Narration" Style="{StaticResource FieldLabel}"/>
+                    <TextBox Height="60" Padding="8,6" FontSize="13" BorderBrush="#CFD8DC" BorderThickness="1"
+                             TextWrapping="Wrap" AcceptsReturn="True"
+                             Text="{Binding Narration}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Actions -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <Button Content="Clear (Esc)" Style="{StaticResource ActionBtn}"
+                    Background="#F5F5F5" Foreground="#37474F"
+                    Command="{Binding ClearAsyncCommand}" Margin="0,0,12,0"/>
+            <Button Content="Save Payment (F10)" Style="{StaticResource ActionBtn}"
+                    Background="#1565C0" Foreground="White"
+                    Command="{Binding SaveAsyncCommand}"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

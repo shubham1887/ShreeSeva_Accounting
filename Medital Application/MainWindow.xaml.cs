@@ -1,24 +1,21 @@
-﻿using System.Text;
+using Medital_Application.ViewModels;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 
-namespace Medital_Application
+namespace Medital_Application;
+
+public partial class MainWindow : Window
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
-    public partial class MainWindow : Window
+    private readonly MainViewModel _vm;
+
+    public MainWindow(MainViewModel vm)
     {
-        public MainWindow()
+        InitializeComponent();
+        _vm = vm;
+        DataContext = vm;
+        Loaded += async (_, _) =>
         {
-            InitializeComponent();
-        }
+            // Navigate to dashboard on load
+            vm.NavigateDashboardCommand.Execute(null);
+        };
     }
 }

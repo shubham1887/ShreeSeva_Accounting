@@ -1,0 +1,47 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using Medital_Application.Helpers;
+
+namespace Medital_Application.ViewModels;
+
+public partial class PurchaseItemViewModel : ObservableObject
+{
+    [ObservableProperty] private int _srNo;
+    [ObservableProperty] private int _productId;
+    [ObservableProperty] private string _productName = string.Empty;
+    [ObservableProperty] private string _batchNo = string.Empty;
+    [ObservableProperty] private string _expiryMY = string.Empty;
+    [ObservableProperty] private decimal _quantity;
+    [ObservableProperty] private decimal _freeQuantity;
+    [ObservableProperty] private decimal _actualRate;
+    [ObservableProperty] private decimal _mrp;
+    [ObservableProperty] private decimal _saleRate;
+    [ObservableProperty] private decimal _itemDiscPer;
+    [ObservableProperty] private decimal _itemDiscAmt;
+    [ObservableProperty] private decimal _sgstRate;
+    [ObservableProperty] private decimal _cgstRate;
+    [ObservableProperty] private decimal _igstRate;
+    [ObservableProperty] private decimal _sgstAmount;
+    [ObservableProperty] private decimal _cgstAmount;
+    [ObservableProperty] private decimal _igstAmount;
+    [ObservableProperty] private decimal _taxableAmount;
+    [ObservableProperty] private decimal _lineTotal;
+    [ObservableProperty] private string? _hsnCode;
+    [ObservableProperty] private bool _isInterState;
+
+    partial void OnQuantityChanged(decimal value) => Recalculate();
+    partial void OnActualRateChanged(decimal value) => Recalculate();
+    partial void OnItemDiscPerChanged(decimal value) => Recalculate();
+
+    private void Recalculate()
+    {
+        if (Quantity <= 0 || ActualRate <= 0) { LineTotal = 0; return; }
+        ItemDiscAmt = Math.Round(Quantity * ActualRate * ItemDiscPer / 100, 2);
+        var netRate = ActualRate - (ActualRate * ItemDiscPer / 100);
+        TaxableAmount = Math.Round(Quantity * netRate, 2);
+        var gst = GSTCalculator.Calculate(TaxableAmount, SgstRate, CgstRate, IgstRate, IsInterState);
+        SgstAmount = gst.SGSTAmount;
+        CgstAmount = gst.CGSTAmount;
+        IgstAmount = gst.IGSTAmount;
+        LineTotal = Math.Round(TaxableAmount + gst.TotalGST, 2);
+    }
+}
