@@ -17,6 +17,10 @@ public partial class LoginView : Window
         _vm = vm;
         DataContext = vm;
         vm.LoginSuccessful += OnLoginSuccessful;
+
+        // WPF PasswordBox doesn't support binding — push value manually
+        PwdBox.PasswordChanged += (_, _) => _vm.Password = PwdBox.Password;
+
         Loaded += (_, _) => TxtUser.Focus();
     }
 
@@ -33,3 +37,4 @@ public partial class LoginView : Window
         base.OnClosed(e);
     }
 }
+
