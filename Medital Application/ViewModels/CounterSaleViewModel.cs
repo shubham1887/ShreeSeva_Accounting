@@ -5,7 +5,6 @@ using Medital_Application.Repositories.Interfaces;
 using Medital_Application.Requests;
 using Medital_Application.Services.Interfaces;
 using System.Collections.ObjectModel;
-using System.Windows;
 
 namespace Medital_Application.ViewModels;
 
@@ -21,7 +20,7 @@ public class BillSlotState
 
     public int ItemCount => Items.Count;
     public string Label => $"BILL {SlotNumber}";
-    public string BadgeText => ItemCount > 0 ? $"{ItemCount} items · ₹{NetAmount:N0}" : "Empty";
+    public string BadgeText => ItemCount > 0 ? $"{ItemCount} items  ₹{NetAmount:N0}" : "Empty";
 }
 
 // ─── Main ViewModel ────────────────────────────────────────────────────────
@@ -65,7 +64,7 @@ public partial class CounterSaleViewModel : ObservableObject
 
     // ── Collections ─────────────────────────────────────────────────────────
     public ObservableCollection<CounterSaleItemVM> Items { get; } = new();
-    public ObservableCollection<Stock> ProductSearchResults { get; } = new();
+    public ObservableCollection<Product> ProductSearchResults { get; } = new();
     public ObservableCollection<BillSlotState> BillSlots { get; } = new();
 
     // ── Injected state ──────────────────────────────────────────────────────
@@ -125,27 +124,17 @@ public partial class CounterSaleViewModel : ObservableObject
         IsSearching = true;
         try
         {
-            // Search by name/barcode - get in-stock items via product search then enrich with batch
-            var products = await _productRepo.SearchAsync(new SearchProductRequest
+            var results = await _productRepo.SearchAsync(new SearchProductRequest
             {
                 SearchTerm = ProductSearchText,
                 OnlyInStock = true,
-                PageSize = 30
+                PageSize = 20
             });
 
             ProductSearchResults.Clear();
-            foreach (var p in products)
-            {
-                // Fetch best batch and create a pseudo-stock for display
-                var batches = await _stockRepo.GetAvailableBatchesAsync(p.Id);
-                if (batches.Any())
-                {
-                    var best = batches[0];
-                    // Augment batch display with product name
-                    best.ProductName = p.ProductName;
-                    ProductSearchResults.Add(best);
-                }
-            }
+            foreach (var p in results)
+                ProductSearchResults.Add(p);
+
             ShowSearchDropdown = ProductSearchResults.Any();
         }
         finally
@@ -154,15 +143,24 @@ public partial class CounterSaleViewModel : ObservableObject
         }
     }
 
-    // ── Add Item ────────────────────────────────────────────────────────────
+    // ── Add Item from Product ────────────────────────────────────────────────
     [RelayCommand]
-    public async Task AddItemAsync(Stock stock)
+    public async Task AddProductAsync(Product product)
     {
         ShowSearchDropdown = false;
         ProductSearchText = string.Empty;
 
-        // Check if same stock already in list - just increment qty
-        var existing = Items.FirstOrDefault(i => i.StockId == stock.Id);
+        var batches = await _stockRepo.GetAvailableBatchesAsync(product.Id);
+        if (!batches.Any())
+        {
+            StatusMessage = $"No stock available for {product.ProductName}";
+            return;
+        }
+
+        var bestBatch = batches[0];
+
+        // Check if same stock batch already in list - just increment qty
+        var existing = Items.FirstOrDefault(i => i.StockId == bestBatch.Id);
         if (existing != null)
         {
             existing.Quantity += 1;
@@ -170,30 +168,22 @@ public partial class CounterSaleViewModel : ObservableObject
             return;
         }
 
-        // Fetch full product details for GST / HSN
-        var products = await _productRepo.SearchAsync(new SearchProductRequest
-        {
-            SearchTerm = stock.ProductName,
-            PageSize = 1
-        });
-        var product = products.FirstOrDefault(p => p.Id == stock.ProductId);
-
         var item = new CounterSaleItemVM
         {
             SrNo = Items.Count + 1,
-            ProductId = stock.ProductId,
-            ProductName = stock.ProductName,
-            BatchNo = stock.BatchNo,
-            ExpiryMY = stock.ExpiryMY,
-            StockId = stock.Id,
+            ProductId = product.Id,
+            ProductName = product.ProductName,
+            BatchNo = bestBatch.BatchNo,
+            ExpiryMY = bestBatch.ExpiryMY,
+            StockId = bestBatch.Id,
             Quantity = 1,
-            Mrp = stock.MRP > 0 ? stock.MRP : (product?.DefaultMRP ?? 0),
-            SaleRate = stock.SaleRate > 0 ? stock.SaleRate : (product?.DefaultSaleRate ?? 0),
-            SgstRate = stock.SGSTRate > 0 ? stock.SGSTRate : (product?.SGSTRate ?? 0),
-            CgstRate = stock.CGSTRate > 0 ? stock.CGSTRate : (product?.CGSTRate ?? 0),
-            IgstRate = stock.IGSTRate > 0 ? stock.IGSTRate : (product?.IGSTRate ?? 0),
-            PurchaseRate = stock.ActualRate,
-            HsnCode = product?.HSNCode,
+            Mrp = bestBatch.MRP > 0 ? bestBatch.MRP : product.DefaultMRP,
+            SaleRate = bestBatch.SaleRate > 0 ? bestBatch.SaleRate : product.DefaultSaleRate,
+            SgstRate = product.SGSTRate,
+            CgstRate = product.CGSTRate,
+            IgstRate = product.IGSTRate,
+            PurchaseRate = bestBatch.ActualRate,
+            HsnCode = product.HSNCode,
             IsInterState = IsInterState,
         };
         item.PropertyChanged += (_, _) => RecalculateTotals();
@@ -218,10 +208,7 @@ public partial class CounterSaleViewModel : ObservableObject
     {
         if (slotNumber == ActiveBillSlot) return;
 
-        // Persist current bill to slot
         SaveCurrentToSlot(ActiveBillSlot);
-
-        // Load target slot
         ActiveBillSlot = slotNumber;
         LoadSlot(slotNumber);
         UpdateSlotBadges();
@@ -254,7 +241,6 @@ public partial class CounterSaleViewModel : ObservableObject
 
     private void UpdateSlotBadges()
     {
-        // Trigger UI refresh for badges by replacing items in BillSlots
         BillSlots.Clear();
         foreach (var s in _slotData.Values.OrderBy(x => x.SlotNumber))
             BillSlots.Add(s);
@@ -266,6 +252,8 @@ public partial class CounterSaleViewModel : ObservableObject
         foreach (var item in Items) item.IsInterState = value;
         RecalculateTotals();
     }
+
+    partial void OnAdjustmentAmountChanged(decimal value) => RecalculateTotals();
 
     private void RecalculateTotals()
     {
@@ -281,8 +269,6 @@ public partial class CounterSaleViewModel : ObservableObject
         NetAmount = Math.Round(net + RoundOff, 2);
     }
 
-    partial void OnAdjustmentAmountChanged(decimal value) => RecalculateTotals();
-
     // ── Save (F10) ──────────────────────────────────────────────────────────
     [RelayCommand]
     private async Task SaveAsync()
@@ -297,12 +283,16 @@ public partial class CounterSaleViewModel : ObservableObject
         StatusMessage = "Saving bill...";
         try
         {
+            var narration = string.IsNullOrWhiteSpace(CustomerName)
+                ? "Counter Sale"
+                : $"Counter Sale - {CustomerName}";
+
             var request = new CreateSaleRequest
             {
                 AccountId = 0, // Counter sale - walk-in customer
                 VoucherDate = VoucherDate,
                 PaymentMode = PaymentMode,
-                Narration = string.IsNullOrWhiteSpace(CustomerName) ? "Counter Sale" : $"Counter Sale - {CustomerName}",
+                Narration = narration,
                 IsInterState = IsInterState,
                 FinancialYear = FinancialYear,
                 CreatedByUserId = CurrentUserId,
@@ -332,9 +322,9 @@ public partial class CounterSaleViewModel : ObservableObject
             {
                 LastBillNo = result.Data?.VoucherNo ?? string.Empty;
                 LastBillAmt = NetAmount;
-                StatusMessage = $"Bill {LastBillNo} saved! ₹{LastBillAmt:N2}";
+                StatusMessage = $"Bill {LastBillNo} saved!  ₹{LastBillAmt:N2}";
 
-                // Clear the current slot and refresh voucher
+                // Clear the current slot and refresh voucher number
                 ClearCurrentSlot();
                 VoucherNo = await _saleRepo.GetNextVoucherNoAsync(FinancialYear);
             }
@@ -363,7 +353,7 @@ public partial class CounterSaleViewModel : ObservableObject
             return;
         }
         StatusMessage = $"Printing bill {LastBillNo}...";
-        // PrintService integration point - called from code-behind after Save
+        // Code-behind wires actual print service after Save
     }
 
     // ── WhatsApp ─────────────────────────────────────────────────────────────
@@ -377,10 +367,13 @@ public partial class CounterSaleViewModel : ObservableObject
         }
         var formatted = Helpers.WhatsAppHelper.FormatMobile(CustomerMobile);
         var msg = Uri.EscapeDataString(
-            $"Dear Customer,\n\nYour bill {LastBillNo} of ₹{NetAmount:N2} has been generated.\n\nThank you for visiting Shree Seva Medical!");
+            $"Dear {(string.IsNullOrWhiteSpace(CustomerName) ? "Customer" : CustomerName)}," +
+            $"\n\nYour bill {LastBillNo} of *₹{NetAmount:N2}* has been generated." +
+            $"\n\nThank you for visiting Shree Seva Medical!");
         var url = $"https://api.whatsapp.com/send?phone={formatted}&text={msg}";
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
-        StatusMessage = "WhatsApp message sent.";
+        System.Diagnostics.Process.Start(
+            new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+        StatusMessage = "WhatsApp message opened.";
     }
 
     // ── Clear / Reset ────────────────────────────────────────────────────────
@@ -402,7 +395,6 @@ public partial class CounterSaleViewModel : ObservableObject
         ShowSearchDropdown = false;
         StatusMessage = string.Empty;
 
-        // Update slot state
         _slotData[ActiveBillSlot].Items.Clear();
         _slotData[ActiveBillSlot].NetAmount = 0;
         UpdateSlotBadges();
@@ -412,7 +404,6 @@ public partial class CounterSaleViewModel : ObservableObject
     [RelayCommand]
     private void LoadPending()
     {
-        // Cycle to next non-empty slot
         for (int i = 1; i <= 5; i++)
         {
             if (i != ActiveBillSlot && _slotData[i].Items.Any())
