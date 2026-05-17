@@ -4,156 +4,256 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="Medical Billing ERP"
-        Height="768" Width="1280"
-        MinHeight="600" MinWidth="900"
+        Title="Shree Seva Medical – Billing ERP"
+        MinHeight="640" MinWidth="1024"
         WindowStartupLocation="CenterScreen"
-        WindowState="Maximized">
+        WindowState="Maximized"
+        Background="#F0F2F5">
 
     <Window.Resources>
-        <!-- Sidebar button style -->
-        <Style x:Key="SidebarBtn" TargetType="Button">
-            <Setter Property="Foreground" Value="#B3E5FC"/>
+
+        <!-- Sidebar nav button -->
+        <Style x:Key="NavBtn" TargetType="Button">
+            <Setter Property="Foreground" Value="#B0BEC5"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="HorizontalContentAlignment" Value="Left"/>
-            <Setter Property="Padding" Value="20,12"/>
+            <Setter Property="Padding" Value="16,11"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="6,1"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="6" Margin="8,2">
+                        <Border x:Name="Brd" Background="{TemplateBinding Background}"
+                                CornerRadius="8">
                             <ContentPresenter Margin="{TemplateBinding Padding}"
                                               HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                               VerticalAlignment="Center"/>
                         </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Brd" Property="Background" Value="#1E3A5F"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#1E3A5F"/>
-                    <Setter Property="Foreground" Value="White"/>
-                </Trigger>
-            </Style.Triggers>
         </Style>
 
-        <!-- Section header style -->
-        <Style x:Key="SideSection" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#546E7A"/>
+        <!-- Active nav button (selected) -->
+        <Style x:Key="NavBtnActive" TargetType="Button" BasedOn="{StaticResource NavBtn}">
+            <Setter Property="Background" Value="#1565C0"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <!-- Section label -->
+        <Style x:Key="NavSection" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#37474F"/>
             <Setter Property="FontSize" Value="10"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Margin" Value="20,16,0,4"/>
+            <Setter Property="Margin" Value="18,14,0,4"/>
         </Style>
+
+        <!-- Top action button -->
+        <Style x:Key="TopBtn" TargetType="Button">
+            <Setter Property="Background" Value="#1565C0"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#0D47A1"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
     </Window.Resources>
 
     <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="220" x:Name="ColSidebar"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>   <!-- Expiry / Alert Ticker -->
+            <RowDefinition Height="*"/>       <!-- Main content -->
+            <RowDefinition Height="26"/>      <!-- Status bar -->
+        </Grid.RowDefinitions>
 
-        <!-- ═══════════════════════════ SIDEBAR ═══════════════════════════ -->
-        <Border Grid.Column="0" Background="#0D1B2A">
-            <DockPanel>
-                <!-- Logo / Company -->
-                <Border DockPanel.Dock="Top" Background="#071628" Padding="0,20,0,16">
-                    <StackPanel>
-                        <Ellipse Width="52" Height="52" Fill="#1565C0" HorizontalAlignment="Center">
-                            <Ellipse.Effect>
-                                <DropShadowEffect Color="#1565C0" BlurRadius="15" ShadowDepth="0"/>
-                            </Ellipse.Effect>
-                        </Ellipse>
-                        <TextBlock Text="+" FontSize="28" Foreground="White" HorizontalAlignment="Center"
-                                   Margin="0,-40,0,0" FontWeight="Light"/>
-                        <TextBlock Text="{Binding CompanyName}" FontSize="13" FontWeight="Bold"
-                                   Foreground="White" HorizontalAlignment="Center" Margin="0,12,0,2"
-                                   TextTrimming="CharacterEllipsis"/>
-                        <TextBlock Text="{Binding FinancialYear, StringFormat='FY {0}'}"
-                                   FontSize="11" Foreground="#90A4AE" HorizontalAlignment="Center"/>
-                    </StackPanel>
+        <!-- ═══ ALERT TICKER (Expiry / Low Stock scrolling) ═══ -->
+        <Border Grid.Row="0" Background="#B71C1C" Padding="0,4">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Background="#7F0000" Padding="12,0">
+                    <TextBlock Text="⚠ ALERTS" Foreground="White" FontSize="11"
+                               FontWeight="Bold" VerticalAlignment="Center"/>
                 </Border>
-
-                <!-- Navigation -->
-                <ScrollViewer DockPanel.Dock="Top" VerticalScrollBarVisibility="Auto">
-                    <StackPanel>
-                        <TextBlock Text="MAIN" Style="{StaticResource SideSection}"/>
-                        <Button Content="📊  Dashboard"      Command="{Binding NavigateDashboardCommand}" Style="{StaticResource SidebarBtn}"/>
-                        <Button Content="🛒  New Sale"       Command="{Binding NavigateSaleCommand}"      Style="{StaticResource SidebarBtn}"/>
-                        <Button Content="📋  Sale List"      Command="{Binding NavigateSaleListCommand}"  Style="{StaticResource SidebarBtn}"/>
-                        <Button Content="📦  New Purchase"   Command="{Binding NavigatePurchaseCommand}"  Style="{StaticResource SidebarBtn}"/>
-                        <Button Content="📃  Purchase List"  Command="{Binding NavigatePurchaseListCommand}" Style="{StaticResource SidebarBtn}"/>
-
-                        <TextBlock Text="INVENTORY" Style="{StaticResource SideSection}"/>
-                        <Button Content="🏪  Stock"          Command="{Binding NavigateStockCommand}"     Style="{StaticResource SidebarBtn}"/>
-
-                        <TextBlock Text="ACCOUNTS" Style="{StaticResource SideSection}"/>
-                        <Button Content="👥  Accounts"       Command="{Binding NavigateAccountsCommand}"  Style="{StaticResource SidebarBtn}"/>
-                        <Button Content="💰  Receipt"        Command="{Binding NavigateReceiptCommand}"   Style="{StaticResource SidebarBtn}"/>
-                        <Button Content="💸  Payment"        Command="{Binding NavigatePaymentCommand}"   Style="{StaticResource SidebarBtn}"/>
-
-                        <TextBlock Text="REPORTS" Style="{StaticResource SideSection}"/>
-                        <Button Content="📈  Reports"        Command="{Binding NavigateReportsCommand}"   Style="{StaticResource SidebarBtn}"/>
-                        <Button Content="🧾  GST Report"     Command="{Binding NavigateGSTCommand}"       Style="{StaticResource SidebarBtn}"/>
-
-                        <TextBlock Text="ADMIN" Style="{StaticResource SideSection}"/>
-                        <Button Content="⚙️  Settings"       Command="{Binding NavigateSettingsCommand}"  Style="{StaticResource SidebarBtn}"/>
-                        <Button Content="💾  Backup Now"     Command="{Binding BackupNowCommand}"         Style="{StaticResource SidebarBtn}"/>
-                    </StackPanel>
-                </ScrollViewer>
-
-                <!-- User info at bottom -->
-                <Border DockPanel.Dock="Bottom" Background="#071628" Padding="16,12">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="32" Height="32" Fill="#1565C0">
-                            <Ellipse.ToolTip>
-                                <ToolTip Content="{Binding UserName}"/>
-                            </Ellipse.ToolTip>
-                        </Ellipse>
-                        <StackPanel Margin="10,0,0,0">
-                            <TextBlock Text="{Binding UserName}" Foreground="White" FontSize="12" FontWeight="SemiBold"/>
-                            <TextBlock Text="{Binding CurrentDate}" Foreground="#78909C" FontSize="10"/>
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
-            </DockPanel>
+                <TextBlock Grid.Column="1" Text="{Binding AlertTicker}"
+                           Foreground="White" FontSize="11" VerticalAlignment="Center"
+                           Margin="12,0" TextTrimming="CharacterEllipsis"/>
+            </Grid>
         </Border>
 
-        <!-- ═══════════════════════════ CONTENT AREA ═══════════════════════════ -->
-        <Grid Grid.Column="1" Background="#F5F7FA">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="52"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="28"/>
-            </Grid.RowDefinitions>
+        <!-- ═══ MAIN AREA ═══ -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="210"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-            <!-- Top Bar -->
-            <Border Grid.Row="0" Background="White"
-                    BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
-                <Grid Margin="20,0">
-                    <TextBlock Text="{Binding CurrentModuleName}"
-                               FontSize="16" FontWeight="SemiBold"
-                               Foreground="#1A237E" VerticalAlignment="Center"/>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding CurrentDate}" Foreground="#546E7A"
-                                   FontSize="12" VerticalAlignment="Center" Margin="0,0,20,0"/>
-                        <TextBlock Text="{Binding UserName}" Foreground="#37474F"
-                                   FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Grid>
+            <!-- ══════ SIDEBAR ══════ -->
+            <Border Grid.Column="0" Background="#0A1628">
+                <DockPanel>
+
+                    <!-- Company header -->
+                    <Border DockPanel.Dock="Top" Background="#071020" Padding="0,18,0,14">
+                        <StackPanel HorizontalAlignment="Center">
+                            <Border Width="54" Height="54" CornerRadius="27"
+                                    Background="#1565C0" HorizontalAlignment="Center">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="#1565C0" BlurRadius="16" ShadowDepth="0" Opacity="0.8"/>
+                                </Border.Effect>
+                                <TextBlock Text="+" FontSize="32" Foreground="White"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           FontWeight="Thin" Margin="0,-4,0,0"/>
+                            </Border>
+                            <TextBlock Text="{Binding CompanyName}" FontSize="12" FontWeight="Bold"
+                                       Foreground="White" HorizontalAlignment="Center"
+                                       Margin="8,10,8,2" TextTrimming="CharacterEllipsis" TextAlignment="Center"/>
+                            <TextBlock Text="{Binding FinancialYear, StringFormat='FY \{0\}'}"
+                                       FontSize="10" Foreground="#546E7A" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- User info at bottom -->
+                    <Border DockPanel.Dock="Bottom" Background="#071020" Padding="14,10">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="34" Height="34" CornerRadius="17" Background="#1565C0">
+                                <TextBlock Text="{Binding UserInitial}" Foreground="White"
+                                           FontSize="14" FontWeight="Bold"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding UserName}" Foreground="White"
+                                           FontSize="11" FontWeight="SemiBold"/>
+                                <TextBlock Text="{Binding CurrentDate}" Foreground="#546E7A" FontSize="10"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Navigation -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="0,4">
+
+                            <TextBlock Text="BILLING" Style="{StaticResource NavSection}"/>
+                            <Button Content="⚡  Counter Sale  F2"    Command="{Binding NavigateCounterSaleCommand}" Style="{StaticResource NavBtn}"/>
+                            <Button Content="🛒  Party Sale"           Command="{Binding NavigateSaleCommand}"       Style="{StaticResource NavBtn}"/>
+                            <Button Content="📋  Sale List"            Command="{Binding NavigateSaleListCommand}"   Style="{StaticResource NavBtn}"/>
+                            <Button Content="↩  Sales Return"          Command="{Binding NavigateSaleReturnCommand}" Style="{StaticResource NavBtn}"/>
+
+                            <TextBlock Text="PURCHASE" Style="{StaticResource NavSection}"/>
+                            <Button Content="📦  New Purchase"         Command="{Binding NavigatePurchaseCommand}"      Style="{StaticResource NavBtn}"/>
+                            <Button Content="📃  Purchase List"        Command="{Binding NavigatePurchaseListCommand}"  Style="{StaticResource NavBtn}"/>
+                            <Button Content="↪  Purchase Return"       Command="{Binding NavigatePurchaseReturnCommand}" Style="{StaticResource NavBtn}"/>
+
+                            <TextBlock Text="INVENTORY" Style="{StaticResource NavSection}"/>
+                            <Button Content="🏪  Stock View"           Command="{Binding NavigateStockCommand}"      Style="{StaticResource NavBtn}"/>
+                            <Button Content="⏰  Near Expiry"          Command="{Binding NavigateNearExpiryCommand}" Style="{StaticResource NavBtn}"/>
+                            <Button Content="🏷  Barcode Print"        Command="{Binding NavigateBarcodeCommand}"    Style="{StaticResource NavBtn}"/>
+
+                            <TextBlock Text="ACCOUNTS" Style="{StaticResource NavSection}"/>
+                            <Button Content="👥  Parties / Accounts"   Command="{Binding NavigateAccountsCommand}"   Style="{StaticResource NavBtn}"/>
+                            <Button Content="💰  Receipt"              Command="{Binding NavigateReceiptCommand}"    Style="{StaticResource NavBtn}"/>
+                            <Button Content="💸  Payment"              Command="{Binding NavigatePaymentCommand}"    Style="{StaticResource NavBtn}"/>
+                            <Button Content="📒  Journal"              Command="{Binding NavigateJournalCommand}"    Style="{StaticResource NavBtn}"/>
+
+                            <TextBlock Text="MASTERS" Style="{StaticResource NavSection}"/>
+                            <Button Content="💊  Products"             Command="{Binding NavigateProductsCommand}"   Style="{StaticResource NavBtn}"/>
+                            <Button Content="🏭  Manufacturers"        Command="{Binding NavigateManufacturersCommand}" Style="{StaticResource NavBtn}"/>
+                            <Button Content="👨‍⚕️  Doctors"            Command="{Binding NavigateDoctorsCommand}"    Style="{StaticResource NavBtn}"/>
+                            <Button Content="🤒  Patients"             Command="{Binding NavigatePatientsCommand}"   Style="{StaticResource NavBtn}"/>
+
+                            <TextBlock Text="REPORTS" Style="{StaticResource NavSection}"/>
+                            <Button Content="📊  Dashboard"            Command="{Binding NavigateDashboardCommand}"  Style="{StaticResource NavBtn}"/>
+                            <Button Content="📈  Sales Report"         Command="{Binding NavigateReportsCommand}"    Style="{StaticResource NavBtn}"/>
+                            <Button Content="🧾  GST Report"           Command="{Binding NavigateGSTCommand}"        Style="{StaticResource NavBtn}"/>
+
+                            <TextBlock Text="SYSTEM" Style="{StaticResource NavSection}"/>
+                            <Button Content="⚙️  Settings"             Command="{Binding NavigateSettingsCommand}"   Style="{StaticResource NavBtn}"/>
+                            <Button Content="💾  Backup"               Command="{Binding BackupNowCommand}"          Style="{StaticResource NavBtn}"/>
+
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
             </Border>
 
-            <!-- Main content view -->
-            <ContentControl Grid.Row="1" Content="{Binding CurrentView}"
-                            Margin="0"/>
+            <!-- ══════ CONTENT PANEL ══════ -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="52"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
-            <!-- Status Bar -->
-            <Border Grid.Row="2" Background="#1565C0" Padding="12,0">
+                <!-- Top bar -->
+                <Border Grid.Row="0" Background="White"
+                        BorderBrush="#E8EAED" BorderThickness="0,0,0,1">
+                    <Grid Margin="20,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding CurrentModuleName}"
+                                       FontSize="17" FontWeight="Bold"
+                                       Foreground="#1A237E" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                                    VerticalAlignment="Center">
+                            <!-- Quick action buttons -->
+                            <Button Content="+ Counter Sale" Style="{StaticResource TopBtn}"
+                                    Command="{Binding NavigateCounterSaleCommand}" Margin="0,0,8,0"/>
+                            <Button Content="+ Party Sale" Style="{StaticResource TopBtn}"
+                                    Command="{Binding NavigateSaleCommand}"
+                                    Background="#2E7D32" Margin="0,0,8,0"/>
+                            <Button Content="+ Purchase" Style="{StaticResource TopBtn}"
+                                    Command="{Binding NavigatePurchaseCommand}"
+                                    Background="#E65100" Margin="0,0,20,0"/>
+                            <TextBlock Text="{Binding CurrentDate}" Foreground="#546E7A"
+                                       FontSize="12" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Page content -->
+                <ContentControl Grid.Row="1" Content="{Binding CurrentView}"/>
+            </Grid>
+        </Grid>
+
+        <!-- ═══ STATUS BAR ═══ -->
+        <Border Grid.Row="2" Background="#1565C0" Padding="16,0">
+            <Grid>
                 <TextBlock Text="{Binding StatusMessage}" Foreground="White"
                            FontSize="11" VerticalAlignment="Center"/>
-            </Border>
-        </Grid>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="{Binding LowStockCount, StringFormat='Low Stock: \{0\}'}"
+                               Foreground="#FFD54F" FontSize="10" Margin="0,0,16,0"/>
+                    <TextBlock Text="{Binding ExpiringCount, StringFormat='Expiring: \{0\}'}"
+                               Foreground="#FF8A65" FontSize="10" Margin="0,0,16,0"/>
+                    <TextBlock Text="Shree Seva Medical ERP v1.0" Foreground="#90CAF9" FontSize="10"/>
+                </StackPanel>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

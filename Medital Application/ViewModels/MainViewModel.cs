@@ -16,12 +16,15 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private string _companyName = "Shree Seva Medical";
     [ObservableProperty] private string _userName = string.Empty;
-    [ObservableProperty] private string _financialYear = "2425";
+    [ObservableProperty] private string _userInitial = "A";
+    [ObservableProperty] private string _financialYear = "2526";
     [ObservableProperty] private string _currentDate = DateTime.Today.ToString("dd-MMM-yyyy");
     [ObservableProperty] private string _currentModuleName = "Dashboard";
     [ObservableProperty] private UserControl? _currentView;
-    [ObservableProperty] private bool _isSidebarExpanded = true;
     [ObservableProperty] private string _statusMessage = "Ready";
+    [ObservableProperty] private string _alertTicker = "Loading alerts...";
+    [ObservableProperty] private int _lowStockCount;
+    [ObservableProperty] private int _expiringCount;
 
     public int CurrentUserId { get; private set; }
     public UserRight? CurrentUserRights { get; private set; }
@@ -31,8 +34,7 @@ public partial class MainViewModel : ObservableObject
         _navigation = navigation;
         _backup = backup;
         _services = services;
-
-        _navigation.NavigationChanged += OnNavigationChanged;
+        _navigation.NavigationChanged += (_, view) => CurrentView = view;
     }
 
     public void SetCurrentUser(LoginResponse login)
@@ -42,95 +44,169 @@ public partial class MainViewModel : ObservableObject
         CompanyName = login.CompanyName;
         CurrentUserId = login.UserId;
         CurrentUserRights = login.Rights;
+        UserInitial = string.IsNullOrEmpty(login.UserName) ? "A"
+            : login.UserName[0].ToString().ToUpper();
     }
 
-    private void OnNavigationChanged(object? sender, UserControl view)
-    {
-        CurrentView = view;
-    }
-
+    // ── Billing ──────────────────────────────────────────────────────────
     [RelayCommand]
-    private void NavigateDashboard()
+    private void NavigateCounterSale()
     {
-        CurrentModuleName = "Dashboard";
-        _navigation.NavigateTo<Views.DashboardView>();
+        CurrentModuleName = "Counter Sale";
+        TryNavigate<Views.Sales.CounterSaleView>();
     }
 
     [RelayCommand]
     private void NavigateSale()
     {
-        CurrentModuleName = "New Sale";
-        _navigation.NavigateTo<Views.Sales.SaleEntryView>();
+        CurrentModuleName = "Party Sale";
+        TryNavigate<Views.Sales.SaleEntryView>();
     }
 
     [RelayCommand]
     private void NavigateSaleList()
     {
         CurrentModuleName = "Sale List";
-        _navigation.NavigateTo<Views.Sales.SaleListView>();
+        TryNavigate<Views.Sales.SaleListView>();
     }
 
+    [RelayCommand]
+    private void NavigateSaleReturn()
+    {
+        CurrentModuleName = "Sales Return";
+        StatusMessage = "Sales Return module coming soon.";
+    }
+
+    // ── Purchase ─────────────────────────────────────────────────────────
     [RelayCommand]
     private void NavigatePurchase()
     {
         CurrentModuleName = "New Purchase";
-        _navigation.NavigateTo<Views.Purchase.PurchaseEntryView>();
+        TryNavigate<Views.Purchase.PurchaseEntryView>();
     }
 
     [RelayCommand]
     private void NavigatePurchaseList()
     {
         CurrentModuleName = "Purchase List";
-        _navigation.NavigateTo<Views.Purchase.PurchaseListView>();
+        TryNavigate<Views.Purchase.PurchaseListView>();
     }
 
+    [RelayCommand]
+    private void NavigatePurchaseReturn()
+    {
+        CurrentModuleName = "Purchase Return";
+        StatusMessage = "Purchase Return module coming soon.";
+    }
+
+    // ── Inventory ────────────────────────────────────────────────────────
     [RelayCommand]
     private void NavigateStock()
     {
         CurrentModuleName = "Stock";
-        _navigation.NavigateTo<Views.Stock.StockView>();
+        TryNavigate<Views.Stock.StockView>();
     }
 
+    [RelayCommand]
+    private void NavigateNearExpiry()
+    {
+        CurrentModuleName = "Near Expiry";
+        StatusMessage = "Near Expiry module coming soon.";
+    }
+
+    [RelayCommand]
+    private void NavigateBarcode()
+    {
+        CurrentModuleName = "Barcode Print";
+        TryNavigate<Views.Masters.BarcodePrintView>();
+    }
+
+    // ── Accounts ─────────────────────────────────────────────────────────
     [RelayCommand]
     private void NavigateAccounts()
     {
         CurrentModuleName = "Accounts";
-        _navigation.NavigateTo<Views.Accounts.AccountListView>();
+        TryNavigate<Views.Accounts.AccountListView>();
     }
 
     [RelayCommand]
     private void NavigateReceipt()
     {
         CurrentModuleName = "Receipt";
-        _navigation.NavigateTo<Views.Accounts.ReceiptView>();
+        TryNavigate<Views.Accounts.ReceiptView>();
     }
 
     [RelayCommand]
     private void NavigatePayment()
     {
         CurrentModuleName = "Payment";
-        _navigation.NavigateTo<Views.Accounts.PaymentView>();
+        TryNavigate<Views.Accounts.PaymentView>();
+    }
+
+    [RelayCommand]
+    private void NavigateJournal()
+    {
+        CurrentModuleName = "Journal";
+        StatusMessage = "Journal module coming soon.";
+    }
+
+    // ── Masters ──────────────────────────────────────────────────────────
+    [RelayCommand]
+    private void NavigateProducts()
+    {
+        CurrentModuleName = "Product Master";
+        TryNavigate<Views.Masters.ProductMasterView>();
+    }
+
+    [RelayCommand]
+    private void NavigateManufacturers()
+    {
+        CurrentModuleName = "Manufacturers";
+        StatusMessage = "Manufacturers module coming soon.";
+    }
+
+    [RelayCommand]
+    private void NavigateDoctors()
+    {
+        CurrentModuleName = "Doctors";
+        StatusMessage = "Doctors module coming soon.";
+    }
+
+    [RelayCommand]
+    private void NavigatePatients()
+    {
+        CurrentModuleName = "Patients";
+        StatusMessage = "Patients module coming soon.";
+    }
+
+    // ── Reports ──────────────────────────────────────────────────────────
+    [RelayCommand]
+    private void NavigateDashboard()
+    {
+        CurrentModuleName = "Dashboard";
+        TryNavigate<Views.DashboardView>();
     }
 
     [RelayCommand]
     private void NavigateReports()
     {
-        CurrentModuleName = "Reports";
-        _navigation.NavigateTo<Views.Reports.SalesReportView>();
+        CurrentModuleName = "Sales Report";
+        TryNavigate<Views.Reports.SalesReportView>();
     }
 
     [RelayCommand]
     private void NavigateGST()
     {
         CurrentModuleName = "GST Report";
-        _navigation.NavigateTo<Views.Reports.GSTReportView>();
+        TryNavigate<Views.Reports.GSTReportView>();
     }
 
+    // ── System ───────────────────────────────────────────────────────────
     [RelayCommand]
     private void NavigateSettings()
     {
         CurrentModuleName = "Settings";
-        _navigation.NavigateTo<Views.Settings.SettingsView>();
+        TryNavigate<Views.Settings.SettingsView>();
     }
 
     [RelayCommand]
@@ -141,6 +217,20 @@ public partial class MainViewModel : ObservableObject
         StatusMessage = ok ? "Backup created successfully." : "Backup failed.";
     }
 
-    [RelayCommand]
-    private void ToggleSidebar() => IsSidebarExpanded = !IsSidebarExpanded;
+    // ── Helper ───────────────────────────────────────────────────────────
+    private void TryNavigate<TView>() where TView : UserControl
+    {
+        try
+        {
+            _navigation.NavigateTo<TView>();
+        }
+        catch (InvalidOperationException)
+        {
+            StatusMessage = $"{typeof(TView).Name} is not registered. Coming soon.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Navigation error: {ex.Message}";
+        }
+    }
 }
