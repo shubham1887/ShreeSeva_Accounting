@@ -8,6 +8,7 @@ using Medital_Application.Views;
 using Medital_Application.Views.Accounts;
 using Medital_Application.Views.Purchase;
 using Medital_Application.Views.Reports;
+using Medital_Application.Views.Masters;
 using Medital_Application.Views.Sales;
 using Medital_Application.Views.Settings;
 using Medital_Application.Views.Stock;
@@ -137,6 +138,8 @@ public partial class App : Application
         services.AddTransient<BackupViewModel>();
         services.AddTransient<DoctorViewModel>();
         services.AddTransient<PatientViewModel>();
+        services.AddTransient<CounterSaleViewModel>();
+        services.AddTransient<BarcodePrintViewModel>();
         services.AddTransient<ProductMasterViewModel>();
         services.AddTransient<UserManagementViewModel>();
         services.AddTransient<PaymentViewModel>();
@@ -145,6 +148,7 @@ public partial class App : Application
         // Views
         services.AddSingleton<MainWindow>();
         services.AddTransient<DashboardView>();
+        services.AddTransient<CounterSaleView>();
         services.AddTransient<SaleEntryView>();
         services.AddTransient<SaleListView>();
         services.AddTransient<PurchaseEntryView>();
@@ -156,6 +160,8 @@ public partial class App : Application
         services.AddTransient<SalesReportView>();
         services.AddTransient<GSTReportView>();
         services.AddTransient<SettingsView>();
+        services.AddTransient<BarcodePrintView>();
+        services.AddTransient<ProductMasterView>();
     }
 
     protected override void OnExit(ExitEventArgs e)
