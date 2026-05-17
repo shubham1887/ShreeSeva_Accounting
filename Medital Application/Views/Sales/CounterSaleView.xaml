@@ -200,7 +200,7 @@
         </Border>
 
         <!-- Product search results popup -->
-        <Popup x:Name="SearchPopup" IsOpen="{Binding HasSearchResults}"
+        <Popup x:Name="SearchPopup" IsOpen="{Binding ShowSearchDropdown}"
                PlacementTarget="{Binding ElementName=TxtSearch}"
                Placement="Bottom" StaysOpen="False" Width="500">
             <Border Background="White" BorderBrush="#CFD8DC" BorderThickness="1" CornerRadius="8">

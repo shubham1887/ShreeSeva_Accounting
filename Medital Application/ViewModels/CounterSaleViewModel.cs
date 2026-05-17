@@ -99,6 +99,12 @@ public partial class CounterSaleViewModel : ObservableObject
     }
 
     // ── Initialise ──────────────────────────────────────────────────────────
+    public void ClearSearchResults()
+    {
+        ProductSearchResults.Clear();
+        ShowSearchDropdown = false;
+    }
+
     public async Task InitializeAsync()
     {
         try
