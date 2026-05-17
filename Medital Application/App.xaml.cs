@@ -50,6 +50,9 @@ public partial class App : Application
         }
         catch { /* Non-fatal */ }
 
+        // Prevent shutdown when LoginView closes (no windows = app exit by default)
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
         // Show Login
         var loginVm = _services.GetRequiredService<LoginViewModel>();
         var loginView = new LoginView(loginVm);
@@ -66,6 +69,8 @@ public partial class App : Application
         mainVm.SetCurrentUser(loginView.LoginResult);
 
         var mainWindow = _services.GetRequiredService<MainWindow>();
+        ShutdownMode = ShutdownMode.OnMainWindowClose;
+        MainWindow = mainWindow;
         mainWindow.Show();
     }
 
